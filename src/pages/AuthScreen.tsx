@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Sparkles, Mail, Lock, User as UserIcon, ShieldCheck, AlertCircle, Loader2, Zap, HardDriveDownload } from 'lucide-react';
+import { Mail, Lock, User as UserIcon, ShieldCheck, AlertCircle, Loader2, Zap, HardDriveDownload } from 'lucide-react';
 import { useAuth, type Perfil, garantirUsuarioDemo } from '../hooks/useAuth';
 import { useDataSourcesStore } from '../store/dataSources';
 import { generateMockDataset } from '../lib/mockData';
@@ -86,21 +86,13 @@ export function AuthScreen() {
       {/* Painel esquerdo — branding */}
       <div className="hidden lg:flex flex-col justify-between w-[44%] max-w-xl p-12 relative overflow-hidden">
         <div className="absolute inset-0 opacity-[0.07]" style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, var(--accent-primary) 0, transparent 40%), radial-gradient(circle at 80% 70%, var(--status-info) 0, transparent 45%)' }} />
-        <div className="relative">
-          <div className="flex items-center gap-3 mb-12">
-            <div className="h-11 w-11 rounded-xl bg-accent grid place-items-center shadow-glow">
-              <Sparkles size={22} className="text-page" />
-            </div>
-            <div>
-              <p className="text-base font-bold text-content">Controladoria</p>
-              <p className="text-[11px] text-content-muted uppercase tracking-widest">Executive Dashboard</p>
-            </div>
-          </div>
+        <div className="relative mb-22" style={{ transform: 'scale(1.7)', transformOrigin: 'top left' }}>
+          <img src="/cerne-logo-full-v2.svg" alt="Cerne" className="h-20" />
           <motion.h1
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
-            className="text-3xl font-bold text-content leading-tight max-w-sm"
+            className="text-xl font-bold text-content leading-tight max-w-sm"
           >
             Uma visão única, interativa e confiável de toda a empresa.
           </motion.h1>
@@ -108,7 +100,7 @@ export function AuthScreen() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.1 }}
-            className="text-sm text-content-muted mt-4 max-w-sm leading-relaxed"
+            className="text-xs text-content-muted mt-3 max-w-sm leading-relaxed"
           >
             KPIs em tempo real, drill-down até o lançamento, alertas inteligentes e dados consolidados — para o Diretor Financeiro e de Controladoria tomarem decisões com confiança.
           </motion.p>
@@ -135,15 +127,7 @@ export function AuthScreen() {
           transition={{ duration: 0.3 }}
           className="w-full max-w-sm"
         >
-          <div className="lg:hidden flex items-center gap-2.5 mb-8">
-            <div className="h-10 w-10 rounded-xl bg-accent grid place-items-center">
-              <Sparkles size={20} className="text-page" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-content">Controladoria</p>
-              <p className="text-[10px] text-content-muted uppercase tracking-wider">Executive Dashboard</p>
-            </div>
-          </div>
+          <img src="/cerne-logo-full-v2.svg" alt="Cerne" className="lg:hidden h-24 mb-8" />
 
           <h2 className="text-xl font-semibold text-content">{mode === 'login' ? 'Entrar na plataforma' : 'Criar sua conta'}</h2>
           <p className="text-sm text-content-muted mt-1">{mode === 'login' ? 'Acesse com suas credenciais corporativas.' : 'Preencha os dados para começar.'}</p>

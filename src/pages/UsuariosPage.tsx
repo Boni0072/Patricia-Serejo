@@ -30,7 +30,7 @@ export function UsuariosPage() {
     criarUsuario, criarUsuarioComAuth, redefinirSenha, atualizarSenha,
     atualizarUsuario, removerUsuario, upsertAcesso, aplicarTemplatePerfil,
   } = useUsuarios();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
 
   useEffect(() => {
     seedDemoSeVazio().catch(() => { /* falha de seed não bloqueia a tela */ });
@@ -296,7 +296,7 @@ export function UsuariosPage() {
           {
             id: 'perfil',
             label: <span className="flex items-center gap-1.5"><UserCog size={13} /> Meu Perfil</span>,
-            content: <ProfileTab usuario={usuarioAtual} onUpdate={atualizarUsuario} />,
+            content: <ProfileTab usuario={usuarioAtual} onUpdate={atualizarUsuario} onSignOut={signOut} />,
           },
         ]}
       />

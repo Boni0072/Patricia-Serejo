@@ -2,13 +2,14 @@ import type { LucideIcon } from 'lucide-react';
 import {
   LayoutDashboard, Wallet, ShieldCheck, Hammer, Boxes, Banknote,
   TrendingUp, Target, ShoppingCart, Package, FolderKanban, Building2,
-  Gauge, Bell, Database, Settings, ChevronLeft, Sparkles, FileSpreadsheet,
-  Calculator, Users,
+  Gauge, Bell, Database, Settings, ChevronLeft, FileSpreadsheet,
+  Calculator, Users, LogOut,
 } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { cn } from '../lib/format';
 import { useAlertas } from '../hooks/useAlertas';
+import type { AuthUser } from '../hooks/useAuth';
 
 export interface NavItem {
   id: string;
@@ -44,11 +45,14 @@ export const NAV_ITEMS: NavItem[] = [
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
+  user: AuthUser | null;
+  onSignOut: () => Promise<void>;
 }
 
-export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+export function Sidebar({ collapsed, onToggle, user, onSignOut }: SidebarProps) {
   const location = useLocation();
   const { naoLidos } = useAlertas();
+  const iniciais = user?.nome?.split(' ').slice(0, 2).map(p => p[0]).join('') ?? 'U';
 
   return (
     <motion.aside
@@ -102,6 +106,30 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           );
         })}
       </nav>
+
+      {/* User profile */}
+      <div className="px-2.5 py-3 border-t border-border-subtle">
+        <div className={cn('flex items-center gap-3 p-2 rounded-lg', collapsed && 'justify-center')}>
+          <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-accent/80 to-accent-hover/80 grid place-items-center text-page font-semibold text-xs shrink-0">
+            {iniciais}
+          </div>
+          {!collapsed && (
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-content truncate">{user?.nome}</p>
+              <p className="text-xs text-content-muted truncate">{user?.email}</p>
+            </div>
+          )}
+          {!collapsed && (
+            <button
+              onClick={onSignOut}
+              title="Sair"
+              className="h-8 w-8 grid place-items-center rounded-lg text-content-muted hover:text-danger hover:bg-danger/10 transition-colors shrink-0"
+            >
+              <LogOut size={16} />
+            </button>
+          )}
+        </div>
+      </div>
 
       <button
         onClick={onToggle}

@@ -12,9 +12,10 @@ import { PERFIL_DESCRICOES } from '../types/usuarios';
 interface Props {
   usuario: Usuario | null;
   onUpdate: (id: string, input: Partial<UsuarioInput>) => Promise<{ error: string | null }>;
+  onSignOut?: () => Promise<void>;
 }
 
-export function ProfileTab({ usuario, onUpdate }: Props) {
+export function ProfileTab({ usuario, onUpdate, onSignOut }: Props) {
   const [nome, setNome] = useState(usuario?.nome ?? '');
   const [cargo, setCargo] = useState(usuario?.cargo ?? '');
   const [telefone, setTelefone] = useState(usuario?.telefone ?? '');
@@ -92,6 +93,11 @@ export function ProfileTab({ usuario, onUpdate }: Props) {
                 <span className="text-content-muted">Desde {formatDate(usuario.criado_em)}</span>
               </div>
             </div>
+            {onSignOut && (
+              <Button variant="outline" size="sm" className="w-full mt-4" leftIcon={<LogOut size={14} />} onClick={onSignOut}>
+                Sair da conta
+              </Button>
+            )}
           </div>
         </Card>
 
@@ -168,10 +174,6 @@ export function ProfileTab({ usuario, onUpdate }: Props) {
               <p className="text-sm font-medium text-content">{usuario.perfil}</p>
             </div>
             <p className="text-xs text-content-muted leading-relaxed">{PERFIL_DESCRICOES[usuario.perfil]}</p>
-          </div>
-          <div className="mt-3 flex items-center gap-2 text-xs text-content-muted">
-            <LogOut size={13} />
-            <span>Para encerrar a sessão, use o botão Sair no menu lateral.</span>
           </div>
         </Card>
       </div>
