@@ -1,0 +1,21 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>Cerne — ícone v2</title>
+  <desc>Três camadas de anéis abertos, cada uma girada em ângulo diferente, convergindo para um núcleo sólido central — remete aos anéis de crescimento de uma árvore convergindo ao cerne.</desc>
+  <defs>
+    <radialGradient id="coreGlow" cx="0.35" cy="0.35" r="0.75">
+      <stop offset="0" stop-color="#B9F5E3"/>
+      <stop offset="0.5" stop-color="#4EEAC5"/>
+      <stop offset="1" stop-color="#17B98D"/>
+    </radialGradient>
+  </defs>
+
+  <rect x="0" y="0" width="200" height="200" rx="44" fill="#12161F"/>
+  <rect x="1" y="1" width="198" height="198" rx="43" fill="none" stroke="#1F2430" stroke-width="2"/>
+
+  <path d="M 153.7 153.7 A 76 76 0 1 1 153.7 46.3" fill="none" stroke="#3E4C63" stroke-width="9" stroke-linecap="round" opacity="0.85"/>
+  <path d="M 72 148.5 A 56 56 0 1 0 128 148.5" fill="none" stroke="#1F8F72" stroke-width="11" stroke-linecap="round"/>
+  <path d="M 87.7 66.2 A 36 36 0 1 1 66.2 87.7" fill="none" stroke="#2DD4A7" stroke-width="14" stroke-linecap="round"/>
+
+  <circle cx="100" cy="100" r="19" fill="url(#coreGlow)"/>
+  <circle cx="94" cy="94" r="5" fill="#E7FBF4" opacity="0.7"/>
+</svg>

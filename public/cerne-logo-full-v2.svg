@@ -1,0 +1,24 @@
+<svg width="440" height="100" viewBox="0 0 440 100" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>Cerne — logotipo completo v2</title>
+  <desc>Ícone de anéis em camadas convergindo a um núcleo, ao lado do nome Cerne e do subtítulo Controladoria Executiva.</desc>
+  <defs>
+    <radialGradient id="coreGlowFull" cx="0.35" cy="0.35" r="0.75">
+      <stop offset="0" stop-color="#B9F5E3"/>
+      <stop offset="0.5" stop-color="#4EEAC5"/>
+      <stop offset="1" stop-color="#17B98D"/>
+    </radialGradient>
+  </defs>
+
+  <rect x="0" y="10" width="80" height="80" rx="20" fill="#12161F"/>
+  <rect x="0.5" y="10.5" width="79" height="79" rx="19.5" fill="none" stroke="#1F2430" stroke-width="1"/>
+
+  <path d="M 61.2 71.2 A 30 30 0 1 1 61.2 28.8" fill="none" stroke="#3E4C63" stroke-width="3.5" stroke-linecap="round" opacity="0.85"/>
+  <path d="M 29 69.05 A 22 22 0 1 0 51 69.05" fill="none" stroke="#1F8F72" stroke-width="4.5" stroke-linecap="round"/>
+  <path d="M 35.2 36.8 A 14 14 0 1 1 26.8 45.2" fill="none" stroke="#2DD4A7" stroke-width="5.5" stroke-linecap="round"/>
+
+  <circle cx="40" cy="50" r="7.5" fill="url(#coreGlowFull)"/>
+  <circle cx="37.5" cy="47.5" r="2" fill="#E7FBF4" opacity="0.7"/>
+
+  <text x="104" y="55" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="34" font-weight="700" fill="#F5F6F8">Cerne</text>
+  <text x="105" y="75" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" font-weight="500" letter-spacing="2" fill="#8B93A3">CONTROLADORIA EXECUTIVA</text>
+</svg>
