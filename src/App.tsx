@@ -1,110 +1,115 @@
-import { useEffect } from 'react';
-import { lazy } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useSearchParams, useLocation } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import {
-  Wallet, ShieldCheck, Hammer, Boxes, Banknote, TrendingUp, Target,
-  ShoppingCart, Package, FolderKanban, Building2, Gauge, Database,
-} from 'lucide-react';
-import { AppLayout } from './components/AppLayout';
-import { RequireAuth } from './components/RequireAuth';
-import { AuthScreen } from './pages/AuthScreen';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import type { Papel } from './types/database';
 
-const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
-const AlertasPage = lazy(() => import('./pages/AlertasPage').then((m) => ({ default: m.AlertasPage })));
-const ConfiguracoesPage = lazy(() => import('./pages/ConfiguracoesPage').then((m) => ({ default: m.ConfiguracoesPage })));
-const LancamentosPage = lazy(() => import('./pages/LancamentosPage').then((m) => ({ default: m.LancamentosPage })));
-const FinanceiroPage = lazy(() => import('./pages/FinanceiroPage').then((m) => ({ default: m.FinanceiroPage })));
-const FluxoCaixaPage = lazy(() => import('./pages/FluxoCaixaPage').then((m) => ({ default: m.FluxoCaixaPage })));
-const ResultadoPage = lazy(() => import('./pages/ResultadoPage').then((m) => ({ default: m.ResultadoPage })));
-const EbitdaPage = lazy(() => import('./pages/EbitdaPage').then((m) => ({ default: m.EbitdaPage })));
-const BudgetPage = lazy(() => import('./pages/BudgetPage').then((m) => ({ default: m.BudgetPage })));
-const CapexPage = lazy(() => import('./pages/CapexPage').then((m) => ({ default: m.CapexPage })));
-const OpexPage = lazy(() => import('./pages/OpexPage').then((m) => ({ default: m.OpexPage })));
-const ControladoriaPage = lazy(() => import('./pages/ControladoriaPage').then((m) => ({ default: m.ControladoriaPage })));
-const ComprasPage = lazy(() => import('./pages/ComprasPage').then((m) => ({ default: m.ComprasPage })));
-const EstoquePage = lazy(() => import('./pages/EstoquePage').then((m) => ({ default: m.EstoquePage })));
-const ProjetosPage = lazy(() => import('./pages/ProjetosPage').then((m) => ({ default: m.ProjetosPage })));
-const ImobilizadoPage = lazy(() => import('./pages/ImobilizadoPage').then((m) => ({ default: m.ImobilizadoPage })));
-const IndicadoresPage = lazy(() => import('./pages/IndicadoresPage').then((m) => ({ default: m.IndicadoresPage })));
-const FontesPage = lazy(() => import('./pages/FontesPage').then((m) => ({ default: m.FontesPage })));
-const UsuariosPage = lazy(() => import('./pages/UsuariosPage').then((m) => ({ default: m.UsuariosPage })));
-const ComingSoon = lazy(() => import('./pages/ComingSoon').then((m) => ({ default: m.ComingSoon })));
-import { useFiltersStore, queryToFilters, filtersToQuery } from './store/filters';
+import SitePublico from './pages/publico/SitePublico';
+import LoginPage from './pages/auth/LoginPage';
+import CadastroPage from './pages/auth/CadastroPage';
+import EsqueciSenhaPage from './pages/auth/EsqueciSenhaPage';
+import RedefinirSenhaPage from './pages/auth/RedefinirSenhaPage';
+import SetupPage from './pages/auth/SetupPage';
+import PoliticaPrivacidadePage from './pages/publico/PoliticaPrivacidadePage';
+import TermosUsoPage from './pages/publico/TermosUsoPage';
 
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 1 } },
-});
+import PortalLayout from './pages/portal/PortalLayout';
+import PortalProcessos from './pages/portal/PortalProcessos';
+import PortalProcessoDetalhe from './pages/portal/PortalProcessoDetalhe';
+import PortalMensagens from './pages/portal/PortalMensagens';
+import PortalAgenda from './pages/portal/PortalAgenda';
+import PortalPerfil from './pages/portal/PortalPerfil';
 
-function FilterUrlSync() {
-  const filters = useFiltersStore();
-  const [sp, setSp] = useSearchParams();
-  const location = useLocation();
+import AdminLayout from './pages/admin/AdminLayout';
+import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminClientes from './pages/admin/AdminClientes';
+import AdminClienteDetalhe from './pages/admin/AdminClienteDetalhe';
+import AdminAdvogados from './pages/admin/AdminAdvogados';
+import AdminProcessos from './pages/admin/AdminProcessos';
+import AdminProcessoDetalhe from './pages/admin/AdminProcessoDetalhe';
+import AdminMensagens from './pages/admin/AdminMensagens';
+import AdminAgenda from './pages/admin/AdminAgenda';
+import AdminConteudo from './pages/admin/AdminConteudo';
+import AdminLogs from './pages/admin/AdminLogs';
 
-  // Carrega filtros da URL na primeira renderização
-  useEffect(() => {
-    const fromUrl = queryToFilters(sp);
-    if (Object.keys(fromUrl).length > 0) filters.set(fromUrl);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+import RotaProtegida from './components/RotaProtegida';
 
-  // Sincroniza mudanças do store para a URL
-  useEffect(() => {
-    const next = filtersToQuery(filters);
-    const current = sp.toString();
-    if (next.toString() !== current) {
-      setSp(next, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.empresa, filters.loja, filters.centroCusto, filters.projeto, filters.fornecedor, filters.categoria, filters.ano, filters.mes, filters.status]);
+function Roteador() {
+  const { loading } = useAuth();
 
-  void location;
-  return null;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-brand-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-brand-200 border-t-brand-700 rounded-full animate-spin" />
+          <p className="text-ink-500 font-medium">Carregando…</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Routes>
+      {/* Público */}
+      <Route path="/" element={<SitePublico />} />
+      <Route path="/politica-privacidade" element={<PoliticaPrivacidadePage />} />
+      <Route path="/termos-uso" element={<TermosUsoPage />} />
+
+      {/* Auth */}
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/cadastro" element={<CadastroPage />} />
+      <Route path="/esqueci-senha" element={<EsqueciSenhaPage />} />
+      <Route path="/redefinir-senha" element={<RedefinirSenhaPage />} />
+      <Route path="/setup" element={<SetupPage />} />
+
+      {/* Portal do cliente */}
+      <Route
+        path="/portal"
+        element={
+          <RotaProtegida papeis={['cliente', 'admin']}>
+            <PortalLayout />
+          </RotaProtegida>
+        }
+      >
+        <Route index element={<Navigate to="processos" replace />} />
+        <Route path="processos" element={<PortalProcessos />} />
+        <Route path="processos/:id" element={<PortalProcessoDetalhe />} />
+        <Route path="mensagens" element={<PortalMensagens />} />
+        <Route path="agenda" element={<PortalAgenda />} />
+        <Route path="perfil" element={<PortalPerfil />} />
+      </Route>
+
+      {/* Painel administrativo */}
+      <Route
+        path="/admin"
+        element={
+          <RotaProtegida papeis={['admin', 'advogado']}>
+            <AdminLayout />
+          </RotaProtegida>
+        }
+      >
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<AdminDashboard />} />
+        <Route path="clientes" element={<AdminClientes />} />
+        <Route path="clientes/:id" element={<AdminClienteDetalhe />} />
+        <Route path="advogados" element={<AdminAdvogados />} />
+        <Route path="processos" element={<AdminProcessos />} />
+        <Route path="processos/:id" element={<AdminProcessoDetalhe />} />
+        <Route path="mensagens" element={<AdminMensagens />} />
+        <Route path="agenda" element={<AdminAgenda />} />
+        <Route path="conteudo" element={<AdminConteudo />} />
+        <Route path="logs" element={<AdminLogs />} />
+      </Route>
+
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
 }
-
-const COMING_SOON_MODULES: { path: string; modulo: string; descricao: string; icon: typeof Wallet; features: string[] }[] = [];
-
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
+    <AuthProvider>
       <BrowserRouter>
-        <FilterUrlSync />
-        <Routes>
-          <Route path="/login" element={<AuthScreen />} />
-          <Route
-            element={
-              <RequireAuth>
-                <AppLayout />
-              </RequireAuth>
-            }
-          >
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/lancamentos" element={<LancamentosPage />} />
-            <Route path="/alertas" element={<AlertasPage />} />
-            <Route path="/configuracoes" element={<ConfiguracoesPage />} />
-            <Route path="/financeiro" element={<FinanceiroPage />} />
-            <Route path="/fluxo-caixa" element={<FluxoCaixaPage />} />
-            <Route path="/resultado" element={<ResultadoPage />} />
-            <Route path="/ebitda" element={<EbitdaPage />} />
-            <Route path="/budget" element={<BudgetPage />} />
-            <Route path="/capex" element={<CapexPage />} />
-            <Route path="/opex" element={<OpexPage />} />
-            <Route path="/controladoria" element={<ControladoriaPage />} />
-            <Route path="/compras" element={<ComprasPage />} />
-            <Route path="/estoque" element={<EstoquePage />} />
-            <Route path="/projetos" element={<ProjetosPage />} />
-            <Route path="/imobilizado" element={<ImobilizadoPage />} />
-            <Route path="/indicadores" element={<IndicadoresPage />} />
-            <Route path="/fontes" element={<FontesPage />} />
-            <Route path="/usuarios" element={<UsuariosPage />} />
-            {COMING_SOON_MODULES.map((m) => (
-              <Route key={m.path} path={`/${m.path}`} element={<ComingSoon modulo={m.modulo} descricao={m.descricao} icon={m.icon} features={m.features} />} />
-            ))}
-          </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <Roteador />
       </BrowserRouter>
-    </QueryClientProvider>
+    </AuthProvider>
   );
 }

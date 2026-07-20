@@ -1,0 +1,94 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function perfil() { return get(/databases/$(database)/documents/perfis/$(uid())).data; }
+    function papel() { return isSignedIn() && exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'admin' || (isSignedIn() && exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'advogado'); }
+    function isAdmin() { return isSignedIn() && exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'admin'; }
+
+    // perfis — usuario le/atualiza o proprio; admin le todos
+    match /perfis/{userId} {
+      allow read: if isSignedIn() && (uid() == userId || isAdmin());
+      allow create: if isSignedIn() && uid() == userId;
+      allow update: if isSignedIn() && (uid() == userId || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // clientes
+    match /clientes/{id} {
+      allow read: if isSignedIn() && (resource.data.user_id == uid() || isAdmin() || (exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'advogado'));
+      allow create: if isSignedIn() && (isAdmin() || (exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'advogado'));
+      allow update: if isSignedIn() && (isAdmin() || (exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'advogado'));
+      allow delete: if isAdmin();
+    }
+
+    // processos
+    match /processos/{id} {
+      allow read: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.advogado_id == uid() ||
+        get(/databases/$(database)/documents/clientes/$(resource.data.cliente_id)).data.user_id == uid()
+      );
+      allow create: if isSignedIn() && (isAdmin() || (exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'advogado'));
+      allow update: if isSignedIn() && (isAdmin() || (exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'advogado'));
+      allow delete: if isAdmin();
+    }
+
+    // movimentacoes
+    match /movimentacoes/{id} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && (isAdmin() || (exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'advogado'));
+      allow delete: if isSignedIn() && (isAdmin() || (exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'advogado'));
+    }
+
+    // documentos
+    match /documentos/{id} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow delete: if isSignedIn() && (isAdmin() || (exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'advogado'));
+    }
+
+    // mensagens
+    match /mensagens/{id} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.remetente_id == uid();
+      allow update: if isSignedIn() && (isAdmin() || (exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'advogado'));
+    }
+
+    // compromissos
+    match /compromissos/{id} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && (isAdmin() || (exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'advogado'));
+      allow update: if isSignedIn() && (isAdmin() || (exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'advogado'));
+      allow delete: if isAdmin();
+    }
+
+    // CMS publico — leitura livre, escrita admin
+    match /areas_atuacao/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /depoimentos/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /conteudo_site/{chave} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // logs_acesso
+    match /logs_acesso/{id} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+    }
+
+    // consentimentos_lgpd
+    match /consentimentos_lgpd/{id} {
+      allow read: if isSignedIn() && (resource.data.user_id == uid() || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.user_id == uid();
+    }
+  }
+}
