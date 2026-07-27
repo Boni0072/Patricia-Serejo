@@ -1,0 +1,22 @@
+{
+  "name": "Patricia C. Serejo Advocacia",
+  "short_name": "PCS Advocacia",
+  "description": "Portal de Advocacia para gestão de clientes e processos.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/maskable_icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

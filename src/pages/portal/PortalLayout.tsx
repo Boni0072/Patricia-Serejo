@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { FolderOpen, MessageSquare, Calendar, User, LogOut, Menu, X, Home } from 'lucide-react';
+import { FolderOpen, MessageSquare, Calendar, User, LogOut, Menu, X, Home, Scale } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import Logo from '../../components/Logo';
