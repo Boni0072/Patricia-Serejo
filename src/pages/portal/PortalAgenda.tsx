@@ -31,7 +31,7 @@ export default function PortalAgenda() {
 
   useEffect(() => {
     if (!user) return;
-    db.listCompromissosDoCliente(user.uid)
+    db.cliente.listCompromissos(user.uid)
       .then((c) => {
         setCompromissos(c);
         setLoading(false);

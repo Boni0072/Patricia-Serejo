@@ -156,3 +156,12 @@ export async function criarAdminInicial(params: {
 
   await signOut(authAdmin);
 }
+
+/**
+ * ATENÇÃO: Esta função deve ser chamada de um backend seguro (Cloud Function)
+ * em um ambiente de produção. Excluir usuários do cliente é arriscado.
+ * A função é fornecida aqui para seguir o padrão do projeto.
+ */
+export async function deleteUser(uid: string): Promise<void> {
+  // Esta é uma chamada fictícia. A exclusão real requer o Admin SDK no backend.
+}

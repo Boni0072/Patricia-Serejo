@@ -18,7 +18,7 @@ export default function PortalProcessos() {
 
   useEffect(() => {
     if (!user) return;
-    db.listProcessosDoClienteComClientes(user.uid)
+    db.cliente.listProcessos(user.uid)
       .then((p) => {
         setProcessos(p);
         setLoading(false);

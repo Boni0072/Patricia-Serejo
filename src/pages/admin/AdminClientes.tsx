@@ -27,6 +27,7 @@ export default function AdminClientes() {
   const [editando, setEditando] = useState<Cliente | null>(null);
   const [form, setForm] = useState({ nome: '', email: '', telefone: '', cpf: '', endereco: '', observacoes: '' });
   const [salvando, setSalvando] = useState(false);
+  const [fotoBase64, setFotoBase64] = useState<string | null>(null);
   const [menuId, setMenuId] = useState<string | null>(null);
 
   const podeGerenciar = perfil?.papel === 'admin' || perfil?.papel === 'advogado';
@@ -53,6 +54,7 @@ export default function AdminClientes() {
   const abrirNovo = () => {
     setEditando(null);
     setForm({ nome: '', email: '', telefone: '', cpf: '', endereco: '', observacoes: '' });
+    setFotoBase64(null);
     setModo('novo');
   };
 
@@ -119,7 +121,9 @@ export default function AdminClientes() {
         cpf: form.cpf || null,
         endereco: form.endereco || null,
         observacoes: form.observacoes || null,
-      });
+        foto_url: fotoBase64,
+      } as Cliente);
+
       let uid: string | null = null;
       try {
         uid = await criarContaCliente({
@@ -146,6 +150,23 @@ export default function AdminClientes() {
       toast.erro('Erro ao cadastrar cliente.');
     }
     setSalvando(false);
+  };
+
+  const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      setFotoBase64(null);
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) { // 2MB
+      toast.erro('Imagem muito grande (máx. 2MB).');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFotoBase64(reader.result as string);
+    };
+    reader.readAsDataURL(file);
   };
 
   const criarAcessoExistente = async (e: React.FormEvent) => {
@@ -256,11 +277,18 @@ export default function AdminClientes() {
             <tbody>
               {filtrados.map((c) => (
                 <tr key={c.id} className="border-b border-ink-50 hover:bg-brand-50/30 transition-colors">
-                  <td className="px-4 py-3">
-                    <Link to={`/admin/clientes/${c.id}`} className="font-medium text-brand-900 text-sm hover:text-brand-700 hover:underline">
-                      {c.nome}
-                    </Link>
-                    {c.cpf && <p className="text-xs text-ink-400">{c.cpf}</p>}
+                  <td className="px-4 py-3 flex items-center gap-3">
+                    <img
+                      src={c.foto_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(c.nome)}&background=e0f2fe&color=0c4a6e&size=96`}
+                      alt={`Foto de ${c.nome}`}
+                      className="w-9 h-9 rounded-full object-cover bg-brand-100"
+                    />
+                    <div>
+                      <Link to={`/admin/clientes/${c.id}`} className="font-medium text-brand-900 text-sm hover:text-brand-700 hover:underline">
+                        {c.nome}
+                      </Link>
+                      {c.cpf && <p className="text-xs text-ink-400">{c.cpf}</p>}
+                    </div>
                   </td>
                   <td className="px-4 py-3 hidden sm:table-cell">
                     <p className="text-sm text-ink-700 flex items-center gap-1.5">
@@ -349,6 +377,15 @@ export default function AdminClientes() {
       {/* Modal Novo cliente — com envio automático de e-mail */}
       <Modal aberto={modo === 'novo'} onFechar={fecharModal} titulo="Novo cliente">
         <form onSubmit={salvarClienteComAcesso} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-ink-700 mb-1.5">Foto do perfil (opcional)</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleFotoChange}
+              className="input-field file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100"
+            />
+          </div>
           <div>
             <label className="block text-sm font-medium text-ink-700 mb-1.5">Nome completo *</label>
             <input required value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} className="input-field" />

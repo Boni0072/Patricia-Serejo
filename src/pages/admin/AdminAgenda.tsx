@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Calendar, Plus, Gavel, Users, Clock, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Plus, Gavel, Users, Clock, Trash2, ChevronLeft, ChevronRight, View } from 'lucide-react';
 import * as db from '../../lib/db';
 import { useAuth } from '../../context/AuthContext';
 import type { Compromisso, Processo } from '../../types/database';
@@ -30,7 +30,8 @@ export default function AdminAgenda() {
     titulo: '', descricao: '', data_hora: '', tipo: 'audiencia' as TipoCompromisso, processo_id: '',
   });
   const [salvando, setSalvando] = useState(false);
-  const [mesAtual, setMesAtual] = useState(new Date());
+  const [dataRef, setDataRef] = useState(new Date()); // Mês ou semana de referência
+  const [view, setView] = useState<'month' | 'week'>('week');
 
   const podeGerenciar = perfil?.papel === 'admin' || perfil?.papel === 'advogado';
 
@@ -48,8 +49,11 @@ export default function AdminAgenda() {
     setLoading(false);
   };
 
-  const abrirNovo = () => {
-    setForm({ titulo: '', descricao: '', data_hora: '', tipo: 'audiencia', processo_id: '' });
+  const abrirNovo = (dataHora?: Date) => {
+    const dataFormatada = dataHora
+      ? `${dataHora.getFullYear()}-${(dataHora.getMonth() + 1).toString().padStart(2, '0')}-${dataHora.getDate().toString().padStart(2, '0')}T${dataHora.getHours().toString().padStart(2, '0')}:${dataHora.getMinutes().toString().padStart(2, '0')}`
+      : '';
+    setForm({ titulo: '', descricao: '', data_hora: dataFormatada, tipo: 'audiencia', processo_id: '' });
     setModalAberto(true);
   };
 
@@ -83,16 +87,17 @@ export default function AdminAgenda() {
     carregar();
   };
 
-  const ano = mesAtual.getFullYear();
-  const mes = mesAtual.getMonth();
+  // --- Lógica para visualização de Mês ---
+  const ano = dataRef.getFullYear();
+  const mes = dataRef.getMonth();
   const primeiroDia = new Date(ano, mes, 1);
   const ultimoDia = new Date(ano, mes + 1, 0);
   const diasNoMes = ultimoDia.getDate();
   const inicioOffset = primeiroDia.getDay();
 
   const compromissosDoMes = compromissos.filter((c) => {
-    const d = new Date(c.data_hora);
-    return d.getFullYear() === ano && d.getMonth() === mes;
+    const dataComp = new Date(c.data_hora);
+    return dataComp.getFullYear() === ano && dataComp.getMonth() === mes;
   });
 
   const compromissosPorDia: Record<number, CompromissoComProcesso[]> = {};
@@ -102,6 +107,20 @@ export default function AdminAgenda() {
     compromissosPorDia[dia].push(c);
   });
 
+  // --- Lógica para visualização de Semana ---
+  const getSemana = (ref: Date) => {
+    const inicio = new Date(ref);
+    inicio.setDate(ref.getDate() - ref.getDay());
+    return Array.from({ length: 7 }).map((_, i) => {
+      const dia = new Date(inicio);
+      dia.setDate(inicio.getDate() + i);
+      return dia;
+    });
+  };
+  const semana = getSemana(dataRef);
+  const horas = Array.from({ length: 13 }, (_, i) => i + 7); // 7h às 19h
+
+  // --- Lógica Geral ---
   const proximos = compromissos
     .filter((c) => new Date(c.data_hora).getTime() > Date.now())
     .slice(0, 6);
@@ -127,125 +146,112 @@ export default function AdminAgenda() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Calendário */}
-        <div className="lg:col-span-2 card p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="font-serif text-xl text-brand-900">
-              {nomesMes[mes]} {ano}
-            </h2>
-            <div className="flex gap-1">
+      <div className="card p-6">
+        {/* Cabeçalho do Calendário/Agenda */}
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="font-serif text-xl text-brand-900">
+            {view === 'month' ? `${nomesMes[mes]} ${ano}` : `Semana de ${semana[0].getDate()} de ${nomesMes[semana[0].getMonth()]} a ${semana[6].getDate()} de ${nomesMes[semana[6].getMonth()]}`}
+          </h2>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setDataRef(new Date(dataRef.setDate(dataRef.getDate() - (view === 'week' ? 7 : diasNoMes))))}
+              className="p-2 rounded-lg hover:bg-brand-50 text-ink-600"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <button
+              onClick={() => setDataRef(new Date())}
+              className="px-3 py-1.5 text-sm rounded-lg hover:bg-brand-50 text-ink-600"
+            >
+              Hoje
+            </button>
+            <button
+              onClick={() => setDataRef(new Date(dataRef.setDate(dataRef.getDate() + (view === 'week' ? 7 : diasNoMes))))}
+              className="p-2 rounded-lg hover:bg-brand-50 text-ink-600"
+            >
+              <ChevronRight size={18} />
+            </button>
+            <div className="ml-4 border-l border-ink-200 pl-2 flex gap-1">
               <button
-                onClick={() => setMesAtual(new Date(ano, mes - 1, 1))}
-                className="p-2 rounded-lg hover:bg-brand-50 text-ink-600"
+                onClick={() => setView('week')}
+                className={`px-3 py-1.5 text-sm rounded-lg ${view === 'week' ? 'bg-brand-100 text-brand-800' : 'hover:bg-brand-50 text-ink-600'}`}
               >
-                <ChevronLeft size={18} />
+                Semana
               </button>
               <button
-                onClick={() => setMesAtual(new Date())}
-                className="px-3 py-1.5 text-sm rounded-lg hover:bg-brand-50 text-ink-600"
+                onClick={() => setView('month')}
+                className={`px-3 py-1.5 text-sm rounded-lg ${view === 'month' ? 'bg-brand-100 text-brand-800' : 'hover:bg-brand-50 text-ink-600'}`}
               >
-                Hoje
-              </button>
-              <button
-                onClick={() => setMesAtual(new Date(ano, mes + 1, 1))}
-                className="p-2 rounded-lg hover:bg-brand-50 text-ink-600"
-              >
-                <ChevronRight size={18} />
+                Mês
               </button>
             </div>
           </div>
+        </div>
 
-          <div className="grid grid-cols-7 gap-1">
-            {diasSemana.map((d) => (
-              <div key={d} className="text-center text-xs font-medium text-ink-500 py-2">
-                {d}
-              </div>
-            ))}
-            {Array.from({ length: inicioOffset }).map((_, i) => (
-              <div key={`off-${i}`} />
-            ))}
+        {view === 'month' && (
+          <div className="grid grid-cols-7 gap-1 animate-fade-in">
+            {diasSemana.map((d) => <div key={d} className="text-center text-xs font-medium text-ink-500 py-2">{d}</div>)}
+            {Array.from({ length: inicioOffset }).map((_, i) => <div key={`off-${i}`} />)}
             {Array.from({ length: diasNoMes }).map((_, i) => {
               const dia = i + 1;
               const comps = compromissosPorDia[dia] || [];
               const isHoje = new Date().toDateString() === new Date(ano, mes, dia).toDateString();
               return (
-                <div
-                  key={dia}
-                  className={`min-h-[80px] p-1.5 rounded-lg border ${
-                    isHoje ? 'border-brand-400 bg-brand-50' : 'border-ink-100'
-                  }`}
-                >
-                  <p className={`text-xs ${isHoje ? 'font-bold text-brand-800' : 'text-ink-500'}`}>
-                    {dia}
-                  </p>
+                <div key={dia} className={`min-h-[80px] p-1.5 rounded-lg border ${isHoje ? 'border-brand-400 bg-brand-50' : 'border-ink-100'} ${podeGerenciar ? 'cursor-pointer hover:bg-brand-100' : ''}`} onClick={() => podeGerenciar && abrirNovo(new Date(ano, mes, dia))}>
+                  <p className={`text-xs ${isHoje ? 'font-bold text-brand-800' : 'text-ink-500'}`}>{dia}</p>
                   {comps.slice(0, 2).map((c) => {
                     const Icone = iconesTipo[c.tipo];
-                    return (
-                      <div
-                        key={c.id}
-                        className={`mt-1 px-1.5 py-0.5 rounded text-[10px] border ${coresTipo[c.tipo]} truncate`}
-                        title={c.titulo}
-                      >
-                        <Icone size={8} className="inline mr-0.5" />
-                        {c.titulo}
-                      </div>
-                    );
+                    return <div key={c.id} className={`mt-1 px-1.5 py-0.5 rounded text-[10px] border ${coresTipo[c.tipo]} truncate`} title={c.titulo}><Icone size={8} className="inline mr-0.5" />{c.titulo}</div>;
                   })}
-                  {comps.length > 2 && (
-                    <p className="text-[10px] text-ink-400 mt-0.5">+{comps.length - 2} mais</p>
-                  )}
+                  {comps.length > 2 && <p className="text-[10px] text-ink-400 mt-0.5">+{comps.length - 2} mais</p>}
                 </div>
               );
             })}
           </div>
-        </div>
+        )}
 
-        {/* Próximos */}
-        <div className="card p-6">
-          <h3 className="font-serif text-lg text-brand-900 mb-4">Próximos compromissos</h3>
-          {proximos.length === 0 ? (
-            <p className="text-sm text-ink-400 text-center py-6">Nenhum compromisso próximo.</p>
-          ) : (
-            <div className="space-y-3">
-              {proximos.map((c) => {
-                const Icone = iconesTipo[c.tipo];
-                const data = new Date(c.data_hora);
+        {view === 'week' && (
+          <div className="grid grid-cols-[auto_1fr] animate-fade-in">
+            {/* Coluna de Horas */}
+            <div className="pr-2">
+              <div className="h-12" /> {/* Espaço para o cabeçalho dos dias */}
+              {horas.map(h => <div key={h} className="h-16 text-right text-xs text-ink-400 pr-2 -mt-2">{`${h}:00`}</div>)}
+            </div>
+
+            {/* Grade da Semana */}
+            <div className="grid grid-cols-7 border-l border-ink-100">
+              {semana.map((dia, diaIndex) => {
+                const isHoje = new Date().toDateString() === dia.toDateString();
+                const compsDoDia = compromissos.filter(c => new Date(c.data_hora).toDateString() === dia.toDateString());
                 return (
-                  <div key={c.id} className="flex gap-3 group">
-                    <div className="flex flex-col items-center justify-center w-12 h-12 rounded-lg bg-brand-800 text-brand-50 shrink-0">
-                      <span className="text-lg font-serif leading-none">{data.getDate()}</span>
-                      <span className="text-[10px] text-brand-200 uppercase">
-                        {data.toLocaleDateString('pt-BR', { month: 'short' })}
-                      </span>
+                  <div key={diaIndex} className="relative border-r border-ink-100">
+                    <div className={`h-12 text-center py-2 border-b border-ink-100 ${isHoje ? 'bg-brand-50' : ''}`}>
+                      <p className="text-xs text-ink-500">{diasSemana[dia.getDay()]}</p>
+                      <p className={`text-lg font-medium ${isHoje ? 'text-brand-800' : 'text-ink-800'}`}>{dia.getDate()}</p>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <Icone size={12} className="text-ink-400" />
-                        <span className="text-[10px] uppercase tracking-wide text-ink-500">
-                          {TIPO_COMPROMISSO_LABEL[c.tipo]}
-                        </span>
-                      </div>
-                      <p className="text-sm font-medium text-brand-900 truncate">{c.titulo}</p>
-                      <p className="text-xs text-ink-400">{formatarDataHora(c.data_hora)}</p>
-                      {c.processo && (
-                        <p className="text-[10px] text-ink-400 truncate">{c.processo.numero}</p>
-                      )}
-                      {podeGerenciar && (
-                        <button
-                          onClick={() => excluir(c)}
-                          className="opacity-0 group-hover:opacity-100 text-danger-500 hover:text-danger-700 text-xs mt-1 flex items-center gap-1 transition-opacity"
-                        >
-                          <Trash2 size={10} /> Excluir
-                        </button>
-                      )}
-                    </div>
+                    {/* Slots de hora clicáveis */}
+                    {horas.map(h => (
+                      <div key={h} className="h-16 border-b border-ink-100 cursor-pointer hover:bg-brand-50/50" onClick={() => podeGerenciar && abrirNovo(new Date(dia.getFullYear(), dia.getMonth(), dia.getDate(), h))}/>
+                    ))}
+                    {/* Renderização dos compromissos */}
+                    {compsDoDia.map(c => {
+                      const dataComp = new Date(c.data_hora);
+                      const top = ((dataComp.getHours() - 7) * 60 + dataComp.getMinutes()) / (13 * 60) * (13 * 64); // 64px = 16 * 4 (h-16)
+                      const Icone = iconesTipo[c.tipo];
+                      return (
+                        <div key={c.id} style={{ top: `${top}px`, left: '2px', right: '2px' }} className={`absolute p-1.5 rounded-lg border ${coresTipo[c.tipo]} z-10 group`}>
+                          <p className="text-[10px] font-bold truncate flex items-center gap-1"><Icone size={10} /> {c.titulo}</p>
+                          <p className="text-[9px] truncate">{dataComp.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                          {podeGerenciar && <button onClick={() => excluir(c)} className="absolute top-0 right-0 p-0.5 bg-white/50 rounded-full opacity-0 group-hover:opacity-100"><Trash2 size={10} className="text-danger-600" /></button>}
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       <Modal aberto={modalAberto} onFechar={() => setModalAberto(false)} titulo="Novo compromisso">

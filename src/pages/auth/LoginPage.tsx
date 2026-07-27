@@ -175,15 +175,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {!modoAdmin && (
-            <p className="mt-8 text-center text-sm text-ink-500">
-              Não tem conta?{' '}
-              <Link to="/cadastro" className="text-brand-700 hover:text-brand-900 font-medium">
-                Cadastre-se
-              </Link>
-            </p>
-          )}
-
           <div className="mt-6 pt-6 border-t border-ink-100">
             {modoAdmin ? (
               <Link

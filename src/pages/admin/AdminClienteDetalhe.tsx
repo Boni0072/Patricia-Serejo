@@ -1,14 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   ChevronLeft, User, Mail, Phone, MapPin, FileText, Scale, Calendar,
-  MessageSquare, Plus, Pencil, AlertCircle, Clock, CheckCircle2, X,
-  Send, Trash2,
+  MessageSquare, Plus, Pencil, AlertCircle, CheckCircle2, X,
+  Send, Trash2, Upload,
 } from 'lucide-react';
 import * as db from '../../lib/db';
 import { useAuth } from '../../context/AuthContext';
 import type {
-  Cliente, Processo, Compromisso, Mensagem, StatusProcesso, TipoCompromisso,
+  Cliente, Processo, Compromisso, Mensagem, StatusProcesso, TipoCompromisso, Perfil,
 } from '../../types/database';
 import {
   STATUS_PROCESSO_LABEL, STATUS_PROCESSO_COR, TIPO_COMPROMISSO_LABEL,
@@ -39,6 +39,7 @@ export default function AdminClienteDetalhe() {
   const [compromissos, setCompromissos] = useState<CompromissoComProcesso[]>([]);
   const [mensagens, setMensagens] = useState<MensagemComProcesso[]>([]);
   const [aba, setAba] = useState<Aba>('dados');
+  const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
 
@@ -62,6 +63,7 @@ export default function AdminClienteDetalhe() {
 
   // Responder mensagem
   const [resposta, setResposta] = useState<Record<string, string>>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -170,6 +172,33 @@ export default function AdminClienteDetalhe() {
     }
   };
 
+  const handleUploadFoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !cliente) return;
+    if (file.size > 2 * 1024 * 1024) { // 2MB
+      toast.erro('Imagem muito grande (máx. 2MB).');
+      return;
+    }
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      try {
+        const base64 = reader.result as string;
+        await db.updateCliente(cliente.id, { foto_url: base64 });
+        toast.sucesso('Foto do cliente atualizada!');
+        await carregar();
+      } catch (err) {
+        toast.erro('Erro ao salvar a foto.');
+        console.error(err);
+      }
+      finally {
+        setUploading(false);
+        // Limpa o input para permitir o upload do mesmo arquivo novamente
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsDataURL(file);
+  };
   if (loading) {
     return <div className="p-8"><div className="w-8 h-8 border-4 border-brand-200 border-t-brand-700 rounded-full animate-spin mx-auto" /></div>;
   }
@@ -200,8 +229,20 @@ export default function AdminClienteDetalhe() {
       {/* Cabeçalho do cliente */}
       <div className="card p-6 mb-6">
         <div className="flex items-start gap-4 flex-wrap">
-          <div className="w-14 h-14 rounded-xl bg-brand-800 flex items-center justify-center shrink-0">
-            <User size={26} className="text-gold-400" />
+          <div className="relative group shrink-0">
+            <input type="file" accept="image/*" ref={fileInputRef} onChange={handleUploadFoto} className="hidden" />
+            <img
+              src={cliente.foto_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(cliente.nome)}&background=0284c7&color=fff&size=128`}
+              alt={`Foto de ${cliente.nome}`}
+              className="w-16 h-16 rounded-full object-cover bg-brand-100"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              {uploading ? '...' : <Upload size={20} />}
+            </button>
           </div>
           <div className="flex-1 min-w-0">
             <h1 className="font-serif text-2xl text-brand-900">{cliente.nome}</h1>

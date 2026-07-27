@@ -82,6 +82,7 @@ export async function getPerfil(uid: string): Promise<Perfil | null> {
 export async function createPerfil(uid: string, p: Omit<Perfil, 'id' | 'criado_em' | 'atualizado_em'>): Promise<void> {
   await setDoc(doc(db, 'perfis', uid), {
     ...p,
+    cliente_id: p.cliente_id || null,
     criado_em: serverTimestamp(),
     atualizado_em: serverTimestamp(),
   });
@@ -106,6 +107,10 @@ export async function updatePapelPerfil(uid: string, papel: Papel): Promise<void
   await updateDoc(doc(db, 'perfis', uid), { papel, atualizado_em: serverTimestamp() });
 }
 
+export async function deletePerfil(uid: string): Promise<void> {
+  await deleteDoc(doc(db, 'perfis', uid));
+}
+
 export async function listClientes(): Promise<Cliente[]> {
   return list<Cliente>('clientes', [orderBy('criado_em', 'desc')]);
 }
@@ -120,7 +125,11 @@ export async function getCliente(id: string): Promise<Cliente | null> {
 }
 
 export async function createCliente(c: Omit<Cliente, 'id' | 'criado_em'> & { user_id?: string | null }): Promise<string> {
-  const ref = await addDoc(collection(db, 'clientes'), { ...c, criado_em: serverTimestamp() });
+  const ref = await addDoc(collection(db, 'clientes'), {
+    ...c,
+    foto_url: null, // A foto é adicionada em uma segunda etapa, se houver
+    criado_em: serverTimestamp(),
+  });
   return ref.id;
 }
 
@@ -395,12 +404,20 @@ export const cliente = {
     return one<Perfil>('perfis', uid);
   },
 
-  async updatePerfil(uid: string, dados: Partial<Pick<Perfil, 'nome' | 'telefone'>>): Promise<void> {
-    // O cliente só pode atualizar o próprio perfil (nome e telefone).
+  async updatePerfil(uid: string, dados: Partial<Pick<Perfil, 'nome' | 'telefone' | 'foto_url'>>): Promise<void> {
+    // O cliente só pode atualizar o próprio perfil.
     await updateDoc(doc(db, 'perfis', uid), {
       ...dados,
       atualizado_em: serverTimestamp(),
     });
+
+    // Também atualiza o documento do cliente correspondente para manter a consistência.
+    const p = await this.getPerfil(uid);
+    if (p?.cliente_id) {
+      // Remove foto_url do payload para não dar erro no tipo
+      const { foto_url, ...dadosCliente } = dados;
+      await updateCliente(p.cliente_id, { ...dadosCliente, foto_url: foto_url || undefined });
+    }
   },
 
   async listProcessos(userId: string): Promise<Processo[]> {
@@ -433,7 +450,7 @@ export const cliente = {
   async createDocumento(userId: string, d: Omit<Documento, 'id' | 'criado_em'>): Promise<string> {
     const processo = await this.getProcesso(userId, d.processo_id);
     if (!processo) throw new Error('Permissão negada');
-    return createDocumento(d);
+    return createDocumento({ ...d, enviado_por_id: userId });
   },
 
   async listMensagens(userId: string, processoId: string): Promise<Mensagem[]> {

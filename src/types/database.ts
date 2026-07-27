@@ -22,6 +22,7 @@ export interface Perfil {
   nome: string;
   email: string;
   papel: Papel;
+  cliente_id: string | null;
   telefone: string | null;
   cpf: string | null;
   criado_em: string;
@@ -37,6 +38,7 @@ export interface Cliente {
   cpf: string | null;
   endereco: string | null;
   observacoes: string | null;
+  foto_url: string | null;
   criado_em: string;
 }
 
@@ -67,7 +69,7 @@ export interface Documento {
   nome_arquivo: string;
   url: string;
   tipo: TipoDocumento;
-  enviado_por: string | null;
+  enviado_por_id: string | null;
   criado_em: string;
 }
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Plus, Mail, Phone, MoreVertical, MailOpen, AlertCircle, Scale, UserCheck } from 'lucide-react';
+import { Plus, Mail, Phone, MoreVertical, MailOpen, AlertCircle, Scale, UserCheck, Trash2 } from 'lucide-react';
 import * as db from '../../lib/db';
-import { criarContaAdvogado, reenviarAcessoAdvogado, codErroAuth } from '../../lib/authAdmin';
+import { criarContaAdvogado, reenviarAcessoAdvogado, codErroAuth, deleteUser } from '../../lib/authAdmin';
 import { useAuth } from '../../context/AuthContext';
 import type { Perfil } from '../../types/database';
 import { formatarData, formatarTelefone } from '../../lib/utils';
@@ -76,6 +76,18 @@ export default function AdminAdvogados() {
     }
   };
 
+  const excluir = async (a: Perfil) => {
+    setMenuId(null);
+    if (!confirm(`Excluir o advogado "${a.nome}"? Esta ação é irreversível.`)) return;
+    try {
+      await db.deletePerfil(a.id);
+      toast.sucesso('Advogado excluído.');
+      carregar();
+    } catch (err) {
+      toast.erro('Erro ao excluir advogado.');
+    }
+  };
+
   if (!podeGerenciar) {
     return (
       <div className="p-8 text-center">
@@ -127,6 +139,12 @@ export default function AdminAdvogados() {
                         className="w-full flex items-center gap-2 px-3 py-2 text-sm text-ink-700 hover:bg-brand-50"
                       >
                         <MailOpen size={14} /> Reenviar acesso
+                      </button>
+                      <button
+                        onClick={() => excluir(a)}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-danger-600 hover:bg-danger-50"
+                      >
+                        <Trash2 size={14} /> Excluir
                       </button>
                     </div>
                   )}

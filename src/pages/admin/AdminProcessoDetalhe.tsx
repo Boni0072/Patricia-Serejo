@@ -149,10 +149,10 @@ export default function AdminProcessoDetalhe() {
     try {
       await db.createDocumento({
         processo_id: id,
-        nome_arquivo: file.name,
+        nome: file.name,
         url: publicUrl,
         tipo: 'outro',
-        enviado_por: user.uid,
+        enviado_por_id: user.uid,
       });
     } catch {
       setUploading(false);

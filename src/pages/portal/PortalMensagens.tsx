@@ -20,7 +20,7 @@ export default function PortalMensagens() {
 
   useEffect(() => {
     if (!user) return;
-    db.listProcessosDoCliente(user.uid)
+    db.cliente.listProcessos(user.uid)
       .then((p) => {
         setProcessos(p);
         setLoading(false);
