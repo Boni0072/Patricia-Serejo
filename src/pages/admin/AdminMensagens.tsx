@@ -19,7 +19,7 @@ interface Conversa {
 }
 
 export default function AdminMensagens() {
-  const { user } = useAuth();
+  const { user, perfil } = useAuth();
   const [conversas, setConversas] = useState<Conversa[]>([]);
   const [selecionada, setSelecionada] = useState<Conversa | null>(null);
   const [novaMsg, setNovaMsg] = useState('');
@@ -31,27 +31,34 @@ export default function AdminMensagens() {
   }, []);
 
   const carregar = async () => {
-    const processos = await db.listProcessosComClientes();
+    try {
+      const papel = perfil?.papel ?? 'admin';
+      const uid = user?.uid ?? '';
+      const processos = await db.listProcessosComClientesVisiveis(papel, uid);
 
-    const conversasArr: Conversa[] = [];
-    for (const p of processos) {
-      const m = await db.listMensagens(p.id);
-      if (m.length > 0) {
-        conversasArr.push({
-          processo: p,
-          mensagens: m,
-          naoLidas: m.filter((x) => !x.lida && x.remetente_id !== user?.uid).length,
-          ultima: m[m.length - 1],
-        });
+      const conversasArr: Conversa[] = [];
+      for (const p of processos) {
+        const m = await db.listMensagens(p.id);
+        if (m.length > 0) {
+          conversasArr.push({
+            processo: p,
+            mensagens: m,
+            naoLidas: m.filter((x) => !x.lida && x.remetente_id !== user?.uid).length,
+            ultima: m[m.length - 1],
+          });
+        }
       }
+      conversasArr.sort((a, b) => {
+        const aT = a.ultima ? new Date(a.ultima.criado_em).getTime() : 0;
+        const bT = b.ultima ? new Date(b.ultima.criado_em).getTime() : 0;
+        return bT - aT;
+      });
+      setConversas(conversasArr);
+      setLoading(false);
+    } catch {
+      setLoading(false);
+      toast.erro('Erro ao carregar as mensagens. Verifique sua permissão de acesso.');
     }
-    conversasArr.sort((a, b) => {
-      const aT = a.ultima ? new Date(a.ultima.criado_em).getTime() : 0;
-      const bT = b.ultima ? new Date(b.ultima.criado_em).getTime() : 0;
-      return bT - aT;
-    });
-    setConversas(conversasArr);
-    setLoading(false);
   };
 
   const selecionar = (c: Conversa) => {

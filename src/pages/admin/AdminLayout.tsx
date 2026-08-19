@@ -8,7 +8,7 @@ import { useAuth } from '../../context/AuthContext';
 import Logo from '../../components/Logo';
 
 const navItems = [
-  { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, adminOnly: true },
+  { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
   { to: '/admin/clientes', label: 'Clientes', icon: Users, adminOnly: true },
   { to: '/admin/advogados', label: 'Advogados', icon: Scale, adminOnly: true },
   { to: '/admin/processos', label: 'Processos', icon: FolderOpen, adminOnly: false },

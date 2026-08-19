@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import * as db from '../../lib/db';
 import { useAuth } from '../../context/AuthContext';
+import { toast } from '../../components/Toast';
 import type { Processo, Mensagem, Compromisso } from '../../types/database';
 import { STATUS_PROCESSO_LABEL, STATUS_PROCESSO_COR } from '../../types/database';
 import { formatarDataHora, tempoRelativo } from '../../lib/utils';
@@ -23,7 +24,7 @@ interface Dados {
 }
 
 export default function AdminDashboard() {
-  const { perfil } = useAuth();
+  const { user, perfil } = useAuth();
   const [dados, setDados] = useState<Dados | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -32,36 +33,44 @@ export default function AdminDashboard() {
   }, []);
 
   const carregar = async () => {
-    const [processos, clientes, msgs, compromissos] = await Promise.all([
-      db.listProcessos(),
-      db.listClientes(),
-      db.listMensagensNaoLidas(5),
-      db.listProximosCompromissos(5),
-    ]);
+    try {
+      const papel = perfil?.papel ?? 'admin';
+      const uid = user?.uid ?? '';
 
-    const porStatus: Record<string, number> = {};
-    const porArea: Record<string, number> = {};
-    processos.forEach((p) => {
-      porStatus[p.status] = (porStatus[p.status] || 0) + 1;
-      porArea[p.area_direito] = (porArea[p.area_direito] || 0) + 1;
-    });
+      const [processos, clientes, msgs, compromissos] = await Promise.all([
+        db.listProcessosVisiveis(papel, uid),
+        db.listClientesVisiveis(papel, uid),
+        db.listMensagensNaoLidasVisiveis(papel, uid, 5),
+        db.listProximosCompromissosVisiveis(papel, uid, 5),
+      ]);
 
-    const recentes = [...processos]
-      .sort((a, b) => new Date(b.atualizado_em).getTime() - new Date(a.atualizado_em).getTime())
-      .slice(0, 5);
+      const porStatus: Record<string, number> = {};
+      const porArea: Record<string, number> = {};
+      processos.forEach((p) => {
+        porStatus[p.status] = (porStatus[p.status] || 0) + 1;
+        porArea[p.area_direito] = (porArea[p.area_direito] || 0) + 1;
+      });
 
-    setDados({
-      totalProcessos: processos.length,
-      processosAtivos: processos.filter((p) => p.status === 'em_andamento').length,
-      totalClientes: clientes.length,
-      mensagensNaoLidas: msgs.length,
-      proximosCompromissos: compromissos,
-      porStatus,
-      porArea,
-      recentes,
-      msgsRecentes: msgs,
-    });
-    setLoading(false);
+      const recentes = [...processos]
+        .sort((a, b) => new Date(b.atualizado_em).getTime() - new Date(a.atualizado_em).getTime())
+        .slice(0, 5);
+
+      setDados({
+        totalProcessos: processos.length,
+        processosAtivos: processos.filter((p) => p.status === 'em_andamento').length,
+        totalClientes: clientes.length,
+        mensagensNaoLidas: msgs.length,
+        proximosCompromissos: compromissos,
+        porStatus,
+        porArea,
+        recentes,
+        msgsRecentes: msgs,
+      });
+      setLoading(false);
+    } catch {
+      setLoading(false);
+      toast.erro('Erro ao carregar o dashboard. Verifique sua permissão de acesso.');
+    }
   };
 
   if (loading || !dados) {
@@ -71,6 +80,8 @@ export default function AdminDashboard() {
       </div>
     );
   }
+
+  const ehAdvogado = perfil?.papel === 'advogado';
 
   const cards = [
     {
@@ -82,11 +93,11 @@ export default function AdminDashboard() {
       link: '/admin/processos',
     },
     {
-      label: 'Clientes',
+      label: ehAdvogado ? 'Meus Clientes' : 'Clientes',
       valor: dados.totalClientes,
       icon: Users,
       cor: 'from-emerald-500 to-emerald-600',
-      link: '/admin/clientes',
+      link: ehAdvogado ? '/admin/processos' : '/admin/clientes',
     },
     {
       label: 'Mensagens não lidas',

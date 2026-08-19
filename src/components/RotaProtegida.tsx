@@ -23,8 +23,14 @@ export default function RotaProtegida({ children, papeis }: Props) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
 
-  if (perfil && !papeis.includes(perfil.papel)) {
-    return <Navigate to={perfil.papel === 'admin' ? '/admin' : '/portal'} replace />;
+  // Conectado, mas sem perfil válido (documento perfis/{uid} ausente ou sem papel).
+  // Impede acesso a áreas protegidas e evita erros de permissão do Firestore.
+  if (!perfil) {
+    return <Navigate to="/login" state={{ from: location.pathname, semPerfil: true }} replace />;
+  }
+
+  if (!papeis.includes(perfil.papel)) {
+    return <Navigate to={perfil.papel === 'admin' || perfil.papel === 'advogado' ? '/admin' : '/portal'} replace />;
   }
 
   return <>{children}</>;

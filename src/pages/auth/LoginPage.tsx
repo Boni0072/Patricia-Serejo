@@ -9,14 +9,18 @@ export default function LoginPage() {
   const { signIn } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: string })?.from;
+  const { from, semPerfil } = (location.state ?? {}) as { from?: string; semPerfil?: boolean };
 
   const params = new URLSearchParams(location.search);
   const modoAdmin = params.get('area') === 'admin';
 
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
-  const [erro, setErro] = useState<string | null>(null);
+  const [erro, setErro] = useState<string | null>(
+    semPerfil
+      ? 'Sua conta não está vinculada a um perfil de acesso (papel de admin/advogado/cliente). Contate o administrador.'
+      : null
+  );
   const [loading, setLoading] = useState(false);
 
   const submit = async (e: React.FormEvent) => {

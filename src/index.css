@@ -1,45 +1,216 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Playfair+Display:wght@500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --primary: #5B0D22;
+  --primary-dark: #410817;
+  --primary-light: #8E1E3F;
+
+  --cherry: #8E1E3F;
+  --cherry-light: #B7435A;
+  --cherry-soft: #C98A98;
+  --burgundy: #5B0D22;
+
+  --cream: #F5EDE3;
+  --cream-light: #FAF6F2;
+  --cream-dark: #EDE0D2;
+
+  --gold: #D4B06A;
+  --gold-light: #E4C98F;
+  --gold-dark: #B9914C;
+
+  --text-primary: #35131E;
+  --text-secondary: #6F5A5F;
+  --text-light: #FAF6F2;
+
+  --brown: #8C7B6B;
+  --border: #E2D3C5;
+  --white: #FFFFFF;
+
+  --shadow-soft: 0 10px 30px rgba(91, 13, 34, 0.08);
+  --shadow-medium: 0 15px 40px rgba(91, 13, 34, 0.14);
+}
+
 @layer base {
   html {
+    /* Aumenta o tamanho da fonte de texto de todo o sistema (16px -> 18px, ~12,5%) */
+    font-size: 112.5%;
     scroll-behavior: smooth;
   }
+
   body {
-    @apply font-sans text-ink-900 bg-brand-50 antialiased;
+    background-color: var(--cream);
+    color: var(--text-primary);
+    font-family: 'Lato', 'Montserrat', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
-  h1, h2, h3, h4 {
-    @apply font-serif;
+
+  a {
+    color: var(--cherry);
+    transition: color 0.3s ease;
+  }
+
+  a:hover {
+    color: var(--gold-dark);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: 'Playfair Display', 'Cormorant Garamond', serif;
+    color: var(--primary);
+    line-height: 1.1;
+  }
+
+  p,
+  span,
+  li,
+  input,
+  textarea,
+  button,
+  select {
+    font-family: 'Lato', 'Montserrat', sans-serif;
+  }
+
+  input,
+  textarea,
+  select {
+    background-color: var(--cream-light);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+  }
+
+  input:focus,
+  textarea:focus,
+  select:focus {
+    border-color: var(--gold);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(212, 176, 106, 0.15);
+  }
+
+  .section-light {
+    background-color: var(--cream);
+  }
+
+  .section-white {
+    background-color: var(--cream-light);
+  }
+
+  .section-dark {
+    background-color: var(--primary);
+    color: var(--cream-light);
+  }
+
+  .section-burgundy {
+    background-color: var(--primary-dark);
+    color: var(--cream-light);
+  }
+
+  .floral-decoration {
+    opacity: 0.75;
+    pointer-events: none;
+  }
+
+  .floral-background {
+    opacity: 0.12;
+    pointer-events: none;
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 px-6 py-3 bg-brand-800 text-brand-50 font-medium rounded-lg transition-all hover:bg-brand-900 focus:outline-none focus:ring-2 focus:ring-brand-700 focus:ring-offset-2 active:scale-[0.98] disabled:opacity-60 disabled:pointer-events-none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.75rem;
+    background-color: var(--primary);
+    color: var(--cream-light);
+    border: 1px solid var(--primary);
+    font-weight: 600;
+    transition: all 0.3s ease;
   }
-  .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 px-6 py-3 bg-transparent text-brand-800 font-medium rounded-lg border border-brand-300 transition-all hover:bg-brand-100 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 active:scale-[0.98] disabled:opacity-60 disabled:pointer-events-none;
+
+  .btn-primary:hover {
+    background-color: var(--cherry);
+    border-color: var(--gold);
+    color: var(--cream-light);
   }
+
   .btn-gold {
-    @apply inline-flex items-center justify-center gap-2 px-6 py-3 bg-gold-500 text-white font-medium rounded-lg transition-all hover:bg-gold-600 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:ring-offset-2 active:scale-[0.98] disabled:opacity-60 disabled:pointer-events-none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.75rem;
+    background-color: var(--gold);
+    color: var(--primary-dark);
+    border: 1px solid var(--gold);
+    font-weight: 600;
+    transition: all 0.3s ease;
   }
+
+  .btn-gold:hover {
+    background-color: var(--gold-light);
+    border-color: var(--gold-light);
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 bg-transparent text-[var(--cherry)] font-medium rounded-lg border border-[var(--border)] transition-all hover:bg-[var(--cream-light)] hover:text-[var(--gold-dark)] focus:outline-none focus:ring-2 focus:ring-[var(--gold)] focus:ring-offset-2 active:scale-[0.98] disabled:opacity-60 disabled:pointer-events-none;
+  }
+
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-ink-600 font-medium rounded-lg transition-all hover:bg-ink-100 hover:text-ink-900 focus:outline-none;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-[var(--text-secondary)] font-medium rounded-lg transition-all hover:bg-[var(--cream-dark)] hover:text-[var(--text-primary)] focus:outline-none;
   }
+
   .input-field {
-    @apply w-full px-4 py-2.5 bg-white border border-ink-200 rounded-lg text-ink-900 placeholder:text-ink-400 transition-all focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500;
+    @apply w-full px-4 py-2.5 bg-[var(--cream-light)] border border-[var(--border)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] transition-all focus:outline-none focus:ring-2 focus:ring-[var(--gold)] focus:border-[var(--gold)];
   }
+
   .card {
-    @apply bg-white rounded-xl border border-ink-100 shadow-sm;
+    background-color: var(--cream-light);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    box-shadow: var(--shadow-soft);
+    transition: all 0.3s ease;
   }
+
+  .card:hover {
+    border-color: var(--gold);
+    box-shadow: var(--shadow-medium);
+  }
+
+  .card-icon {
+    color: var(--cherry);
+  }
+
+  .card-icon-accent {
+    color: var(--gold);
+  }
+
   .badge {
     @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border;
   }
+
   .section-padding {
     @apply px-4 sm:px-6 lg:px-8;
+  }
+
+  .decorative-line {
+    background-color: var(--gold);
+  }
+
+  .whatsapp-button {
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.18);
   }
 }
 
@@ -52,10 +223,10 @@
     background: transparent;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    @apply bg-ink-300 rounded-full;
+    @apply bg-[var(--gold-dark)] rounded-full;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    @apply bg-ink-400;
+    @apply bg-[var(--gold)];
   }
   .text-balance {
     text-wrap: balance;

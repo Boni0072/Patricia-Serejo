@@ -355,6 +355,96 @@ export async function listCompromissosComProcessos(): Promise<(Compromisso & { p
   return comps.map((c) => ({ ...c, processo: c.processo_id ? map.get(c.processo_id) ?? null : null }));
 }
 
+/* ============================================================
+ * VISÃO POR PAPEL (admin x advogado)
+ * O advogado enxerga apenas os próprios processos (advogado_id
+ * igual ao uid dele) e tudo que está vinculado a eles: clientes,
+ * agenda e mensagens. O admin continua enxergando tudo.
+ * ============================================================ */
+
+export async function listProcessosVisiveis(
+  papel: Papel | null | undefined,
+  uid: string,
+): Promise<Processo[]> {
+  if (papel === 'advogado') return listProcessosByAdvogado(uid);
+  return listProcessos();
+}
+
+export async function listClientesVisiveis(
+  papel: Papel | null | undefined,
+  uid: string,
+): Promise<Cliente[]> {
+  if (papel !== 'advogado') return listClientes();
+
+  // Advogado só vê os clientes dos processos que estão com ele.
+  const procs = await listProcessosByAdvogado(uid);
+  const ids = [...new Set(procs.map((p) => p.cliente_id).filter(Boolean))];
+  const arr = await Promise.all(ids.map((id) => getCliente(id)));
+  return arr.filter((c): c is Cliente => c !== null).sort((a, b) => a.nome.localeCompare(b.nome));
+}
+
+export async function listProcessosComClientesVisiveis(
+  papel: Papel | null | undefined,
+  uid: string,
+): Promise<(Processo & { cliente: Cliente | null })[]> {
+  if (papel !== 'advogado') return listProcessosComClientes();
+
+  const procs = await listProcessosByAdvogado(uid);
+  const clientes = await listClientesVisiveis('advogado', uid);
+  const map = new Map(clientes.map((c) => [c.id, c]));
+  return procs.map((p) => ({ ...p, cliente: map.get(p.cliente_id) ?? null }));
+}
+
+export async function listCompromissosVisiveis(
+  papel: Papel | null | undefined,
+  uid: string,
+): Promise<(Compromisso & { processo: Processo | null })[]> {
+  const procs = await listProcessosVisiveis(papel, uid);
+  const procMap = new Map(procs.map((p) => [p.id, p]));
+  const procIds = new Set(procs.map((p) => p.id));
+  const all = await listCompromissos();
+
+  if (papel === 'advogado') {
+    // Advogado vê os compromissos dele + os compromissos gerais (sem vínculo).
+    return all
+      .filter((c) => !c.processo_id || procIds.has(c.processo_id))
+      .map((c) => ({ ...c, processo: c.processo_id ? procMap.get(c.processo_id) ?? null : null }));
+  }
+
+  return all.map((c) => ({ ...c, processo: c.processo_id ? procMap.get(c.processo_id) ?? null : null }));
+}
+
+export async function listMensagensNaoLidasVisiveis(
+  papel: Papel | null | undefined,
+  uid: string,
+  maxCount = 5,
+): Promise<Mensagem[]> {
+  if (papel !== 'advogado') return listMensagensNaoLidas(maxCount);
+
+  const procs = await listProcessosByAdvogado(uid);
+  const todas: Mensagem[] = [];
+  for (const p of procs) {
+    todas.push(...(await listMensagens(p.id)));
+  }
+  return todas
+    .filter((m) => !m.lida)
+    .sort((a, b) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime())
+    .slice(0, maxCount);
+}
+
+export async function listProximosCompromissosVisiveis(
+  papel: Papel | null | undefined,
+  uid: string,
+  maxCount = 5,
+): Promise<Compromisso[]> {
+  if (papel !== 'advogado') return listProximosCompromissos(maxCount);
+
+  const procs = await listProcessosByAdvogado(uid);
+  const procIds = new Set(procs.map((p) => p.id));
+  const all = await listProximosCompromissos(500);
+  return all.filter((c) => !c.processo_id || procIds.has(c.processo_id)).slice(0, maxCount);
+}
+
 export async function listCompromissosByCliente(
   clienteId: string,
 ): Promise<(Compromisso & { processo: Processo | null })[]> {

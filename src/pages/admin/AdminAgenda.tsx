@@ -21,7 +21,7 @@ const coresTipo = {
 };
 
 export default function AdminAgenda() {
-  const { perfil } = useAuth();
+  const { user, perfil } = useAuth();
   const [compromissos, setCompromissos] = useState<CompromissoComProcesso[]>([]);
   const [processos, setProcessos] = useState<Processo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,13 +40,20 @@ export default function AdminAgenda() {
   }, []);
 
   const carregar = async () => {
-    const [comps, procs] = await Promise.all([
-      db.listCompromissosComProcessos(),
-      db.listProcessos(),
-    ]);
-    setCompromissos(comps);
-    setProcessos(procs.sort((a, b) => a.titulo.localeCompare(b.titulo)));
-    setLoading(false);
+    try {
+      const papel = perfil?.papel ?? 'admin';
+      const uid = user?.uid ?? '';
+      const [comps, procs] = await Promise.all([
+        db.listCompromissosVisiveis(papel, uid),
+        db.listProcessosVisiveis(papel, uid),
+      ]);
+      setCompromissos(comps);
+      setProcessos(procs.sort((a, b) => a.titulo.localeCompare(b.titulo)));
+      setLoading(false);
+    } catch {
+      setLoading(false);
+      toast.erro('Erro ao carregar a agenda. Verifique sua permissão de acesso.');
+    }
   };
 
   const abrirNovo = (dataHora?: Date) => {

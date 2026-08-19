@@ -88,15 +88,15 @@ function Roteador() {
       >
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<AdminDashboard />} />
-        <Route path="clientes" element={<AdminClientes />} />
-        <Route path="clientes/:id" element={<AdminClienteDetalhe />} />
-        <Route path="advogados" element={<AdminAdvogados />} />
+        <Route path="clientes" element={<RotaProtegida papeis={['admin']}><AdminClientes /></RotaProtegida>} />
+        <Route path="clientes/:id" element={<RotaProtegida papeis={['admin']}><AdminClienteDetalhe /></RotaProtegida>} />
+        <Route path="advogados" element={<RotaProtegida papeis={['admin']}><AdminAdvogados /></RotaProtegida>} />
         <Route path="processos" element={<AdminProcessos />} />
         <Route path="processos/:id" element={<AdminProcessoDetalhe />} />
         <Route path="mensagens" element={<AdminMensagens />} />
         <Route path="agenda" element={<AdminAgenda />} />
-        <Route path="conteudo" element={<AdminConteudo />} />
-        <Route path="logs" element={<AdminLogs />} />
+        <Route path="conteudo" element={<RotaProtegida papeis={['admin']}><AdminConteudo /></RotaProtegida>} />
+        <Route path="logs" element={<RotaProtegida papeis={['admin']}><AdminLogs /></RotaProtegida>} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

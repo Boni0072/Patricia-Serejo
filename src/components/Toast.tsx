@@ -1,4 +1,3 @@
-import { createRoot, Root } from 'react-dom/client';
 import { useEffect, useState } from 'react';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
@@ -10,7 +9,6 @@ interface Toast {
   mensagem: string;
 }
 
-let root: Root | null = null;
 let toasts: Toast[] = [];
 let contadorId = 0;
 const listeners = new Set<(t: Toast[]) => void>();
@@ -31,7 +29,7 @@ export const toast = {
   info: (m: string) => notificar('info', m),
 };
 
-function ToastContainer() {
+export function ToastProvider() {
   const [itens, setItens] = useState<Toast[]>([]);
 
   useEffect(() => {
@@ -65,23 +63,4 @@ function ToastContainer() {
       ))}
     </div>
   );
-}
-
-export function ToastProvider() {
-  useEffect(() => {
-    const el = document.createElement('div');
-    el.id = 'toast-root';
-    document.body.appendChild(el);
-    root = createRoot(el);
-    root.render(<ToastContainer />);
-    return () => {
-      // Adia a desmontagem para evitar a condição de corrida em modo de desenvolvimento.
-      setTimeout(() => {
-        root?.unmount();
-        el.remove();
-      }, 0);
-    };
-  }, []);
-
-  return null;
 }

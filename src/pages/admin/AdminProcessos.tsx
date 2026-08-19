@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FolderOpen, Plus, Search, ChevronRight, Scale, Filter, ExternalLink } from 'lucide-react';
 import * as db from '../../lib/db';
+import { useAuth } from '../../context/AuthContext';
 import type { Processo, Cliente } from '../../types/database';
 import { STATUS_PROCESSO_LABEL, STATUS_PROCESSO_COR, type StatusProcesso } from '../../types/database';
 import * as storage from '../../lib/storage';
@@ -38,19 +39,27 @@ export default function AdminProcessos() {
   const [salvando, setSalvando] = useState(false);
   const [arquivos, setArquivos] = useState<FileList | null>(null);
   const navigate = useNavigate();
+  const { user, perfil } = useAuth();
 
   useEffect(() => {
     carregar();
   }, []);
 
   const carregar = async () => {
-    const [procs, clients] = await Promise.all([
-      db.listProcessosComClientes(),
-      db.listClientes(),
-    ]);
-    setProcessos(procs);
-    setClientes(clients.sort((a, b) => a.nome.localeCompare(b.nome)));
-    setLoading(false);
+    try {
+      const papel = perfil?.papel ?? 'admin';
+      const uid = user?.uid ?? '';
+      const [procs, clients] = await Promise.all([
+        db.listProcessosComClientesVisiveis(papel, uid),
+        db.listClientesVisiveis(papel, uid),
+      ]);
+      setProcessos(procs);
+      setClientes(clients.sort((a, b) => a.nome.localeCompare(b.nome)));
+      setLoading(false);
+    } catch {
+      setLoading(false);
+      toast.erro('Erro ao carregar os processos. Verifique sua permissão de acesso.');
+    }
   };
 
   const filtrados = processos.filter((p) => {
@@ -84,7 +93,7 @@ export default function AdminProcessos() {
         status: form.status,
         cliente_id: form.cliente_id,
         descricao: form.descricao || null,
-        advogado_id: null,
+        advogado_id: perfil?.papel === 'advogado' ? user?.uid ?? null : null,
       });
 
       // Upload de arquivos, se houver
