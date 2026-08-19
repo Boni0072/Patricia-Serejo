@@ -1,5 +1,12 @@
-const CACHE_NAME = 'pcs-advocacia-v1';
-const APP_SHELL = ['/', '/manifest.webmanifest', '/icon.svg', '/maskable_icon.svg'];
+const CACHE_NAME = 'pcs-advocacia-v2';
+const APP_SHELL = [
+  '/',
+  '/manifest.webmanifest',
+  '/favicon.png',
+  '/apple-touch-icon.png',
+  '/iconePS-192.png',
+  '/iconePS-512.png',
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
@@ -57,8 +64,8 @@ self.addEventListener('push', (event) => {
     self.registration
       .showNotification(titulo, {
         body: corpo,
-        icon: '/icon.svg',
-        badge: '/maskable_icon.svg',
+        icon: '/iconePS-192.png',
+        badge: '/favicon.png',
         tag: id,
         renotify: true,
         vibrate: [200, 100, 200, 100, 300],
