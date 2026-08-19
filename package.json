@@ -9,10 +9,13 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit -p tsconfig.app.json"
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "alertas": "node scripts/monitor-alertas.mjs",
+    "alertas:once": "node scripts/monitor-alertas.mjs --once"
   },
   "dependencies": {
     "firebase": "^12.16.0",
+    "firebase-admin": "^13.10.0",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

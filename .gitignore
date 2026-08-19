@@ -11,6 +11,10 @@ dist
 dist-ssr
 *.local
 
+# Credenciais/segredos do servidor de push
+firebase-service-account.json
+*.tsbuildinfo
+
 .vscode/*
 !.vscode/extensions.json
 .idea

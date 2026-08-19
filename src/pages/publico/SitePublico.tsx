@@ -8,11 +8,9 @@ import {
   Mail,
   MapPin,
   Clock,
-  ChevronRight,
   Quote,
   ArrowRight,
   Shield,
-  Lock,
   UserRound,
   Calendar,
 } from 'lucide-react';
@@ -342,7 +340,7 @@ export default function SitePublico() {
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
-          <div className="flex items-center justify-between h-20">
+          <div className="flex items-center justify-between h-16">
 
             <Logo
               comTexto
@@ -465,7 +463,7 @@ export default function SitePublico() {
 
       <section
         id="inicio"
-        className="relative min-h-screen flex items-center overflow-hidden"
+        className="relative min-h-[680px] lg:min-h-[700px] flex items-center overflow-hidden"
         style={{
           backgroundColor: 'var(--cream)',
         }}
@@ -480,19 +478,19 @@ export default function SitePublico() {
           {/* Flor grande superior esquerda */}
 
           <FloralAccent
-            className="absolute -left-24 -top-10 w-[390px] h-[390px]"
+            className="absolute -left-28 -top-16 w-[330px] h-[330px]"
             color="var(--cherry)"
             accent="var(--gold)"
-            opacity={0.28}
+            opacity={0.22}
           />
 
           {/* Flor grande superior direita */}
 
           <FloralAccent
-            className="absolute -right-28 top-16 w-[450px] h-[450px]"
+            className="absolute -right-24 top-0 w-[370px] h-[370px]"
             color="var(--cherry-light)"
             accent="var(--gold)"
-            opacity={0.24}
+            opacity={0.20}
             flip
           />
 
@@ -572,7 +570,7 @@ export default function SitePublico() {
             CONTEÚDO HERO
         ================================================== */}
 
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-32 w-full">
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 w-full">
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
 
@@ -581,7 +579,7 @@ export default function SitePublico() {
             <div className="max-w-3xl">
 
               <div
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-7 animate-fade-in"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-5 animate-fade-in"
                 style={{
                   backgroundColor:
                     'rgba(91,13,34,0.07)',
@@ -609,7 +607,7 @@ export default function SitePublico() {
               </div>
 
               <h1
-                className="font-serif text-4xl sm:text-5xl lg:text-6xl leading-[1.08] text-balance animate-fade-in"
+                className="font-serif text-4xl sm:text-5xl lg:text-[3.7rem] leading-[1.08] text-balance animate-fade-in"
                 style={{
                   color: 'var(--primary)',
                 }}
@@ -619,7 +617,7 @@ export default function SitePublico() {
               </h1>
 
               <div
-                className="mt-6 w-20 h-1 rounded-full"
+                className="mt-5 w-16 h-0.5"
                 style={{
                   background:
                     'linear-gradient(90deg, var(--gold), var(--cherry-light))',
@@ -627,7 +625,7 @@ export default function SitePublico() {
               />
 
               <p
-                className="mt-6 text-lg leading-relaxed max-w-2xl animate-fade-in"
+                className="mt-5 text-base leading-relaxed max-w-lg animate-fade-in"
                 style={{
                   color: 'var(--text-secondary)',
                   animationDelay: '0.1s',
@@ -638,7 +636,7 @@ export default function SitePublico() {
               </p>
 
               <div
-                className="mt-10 flex flex-col sm:flex-row gap-4 animate-fade-in"
+                className="mt-7 flex flex-col sm:flex-row gap-3 animate-fade-in"
                 style={{
                   animationDelay: '0.2s',
                 }}
@@ -646,7 +644,7 @@ export default function SitePublico() {
 
                 <a
                   href="#contato"
-                  className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-lg font-medium transition-all duration-300 shadow-md"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-md font-medium transition-all duration-300 shadow-md"
                   style={{
                     backgroundColor: 'var(--primary)',
                     color: 'var(--cream-light)',
@@ -672,7 +670,7 @@ export default function SitePublico() {
 
                 <a
                   href="#areas"
-                  className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-lg font-medium transition-all duration-300"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-md font-medium transition-all duration-300"
                   style={{
                     color: 'var(--primary)',
                     border:
@@ -709,7 +707,7 @@ export default function SitePublico() {
             <div className="relative hidden lg:block">
 
               <div
-                className="relative rounded-[2rem] overflow-hidden shadow-2xl"
+                className="relative rounded-[1.25rem] overflow-hidden shadow-2xl"
                 style={{
                   backgroundColor:
                     'var(--cream-light)',
@@ -721,7 +719,7 @@ export default function SitePublico() {
                 <img
                   src="https://images.pexels.com/photos/5668858/pexels-photo-5668858.jpeg?auto=compress&cs=tinysrgb&w=1200"
                   alt="Advocacia Patrícia Serejo"
-                  className="w-full h-[560px] object-cover"
+                  className="w-full h-[430px] object-cover"
                   style={{
                     filter:
                       'sepia(8%) saturate(82%) contrast(96%)',
@@ -1598,90 +1596,7 @@ export default function SitePublico() {
             </div>
 
 
-            {/* PORTAL */}
-
-            <div
-              className="rounded-2xl p-8 backdrop-blur-sm"
-              style={{
-                backgroundColor:
-                  'rgba(250,246,242,0.06)',
-                border:
-                  '1px solid rgba(212,176,106,0.28)',
-              }}
-            >
-
-              <h3
-                className="font-serif text-2xl mb-2"
-                style={{
-                  color:
-                    'var(--cream-light)',
-                }}
-              >
-                Acesso ao sistema
-              </h3>
-
-              <p
-                className="text-sm mb-6"
-                style={{
-                  color:
-                    'var(--cream-dark)',
-                }}
-              >
-                Já é cliente? Acesse o portal para
-                acompanhar seus processos, enviar
-                documentos e conversar com o escritório.
-              </p>
-
-              <div className="flex flex-col gap-3">
-
-                <Link
-                  to="/login"
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg font-medium transition-all duration-300"
-                  style={{
-                    backgroundColor:
-                      'var(--gold)',
-                    color:
-                      'var(--primary-dark)',
-                  }}
-                >
-                  <UserRound size={18} />
-                  Entrar no portal
-                </Link>
-
-                <Link
-                  to="/cadastro"
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg font-medium transition-all"
-                  style={{
-                    color:
-                      'var(--cream-light)',
-                    border:
-                      '1px solid rgba(250,246,242,0.35)',
-                  }}
-                >
-                  Criar conta
-                  <ChevronRight size={16} />
-                </Link>
-
-              </div>
-
-              <div
-                className="mt-8 pt-6 flex items-center gap-2 text-xs"
-                style={{
-                  borderTop:
-                    '1px solid rgba(250,246,242,0.12)',
-                  color:
-                    'var(--cream-dark)',
-                }}
-              >
-                <Lock size={14} />
-
-                Dados protegidos em conformidade
-                com a LGPD
-              </div>
-
             </div>
-
-          </div>
 
         </div>
 

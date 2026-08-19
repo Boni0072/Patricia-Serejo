@@ -25,11 +25,14 @@ import {
   type QueryConstraint,
 } from 'firebase/firestore';
 import { db } from './firebaseClient';
+import { formatarDataHora } from './utils';
 import type {
   Perfil, Cliente, Processo, Movimentacao, Documento, Mensagem,
   Compromisso, AreaAtuacao, Depoimento, ConteudoSite, LogAcesso,
+  Notificacao, TipoNotificacao,
   Papel, StatusProcesso, TipoCompromisso, TipoDocumento, CanalMensagem,
 } from '../types/database';
+import { TIPO_COMPROMISSO_LABEL } from '../types/database';
 
 type WithId<T> = T & { id: string };
 
@@ -124,7 +127,13 @@ export async function getCliente(id: string): Promise<Cliente | null> {
   return one<Cliente>('clientes', id);
 }
 
-export async function createCliente(c: Omit<Cliente, 'id' | 'criado_em'> & { user_id?: string | null }): Promise<string> {
+export async function createCliente(
+  c: Omit<Cliente, 'id' | 'criado_em' | 'advogado_id' | 'foto_url' | 'user_id'> & {
+    user_id?: string | null;
+    advogado_id?: string | null;
+    foto_url?: string | null;
+  },
+): Promise<string> {
   const ref = await addDoc(collection(db, 'clientes'), {
     ...c,
     foto_url: null, // A foto é adicionada em uma segunda etapa, se houver
@@ -209,6 +218,10 @@ export async function deleteDocumento(id: string): Promise<void> {
 
 export async function createMensagem(m: Omit<Mensagem, 'id' | 'criado_em'>): Promise<string> {
   const ref = await addDoc(collection(db, 'mensagens'), { ...m, criado_em: serverTimestamp() });
+  // Cria notificação para o destinatário em segundo plano (não bloqueia a resposta ao usuário)
+  void agendarNotificacaoMensagem({ ...m, id: ref.id }).catch((e) =>
+    console.error('Falha ao criar notificação de mensagem:', e),
+  );
   return ref.id;
 }
 
@@ -247,11 +260,19 @@ export async function createCompromisso(c: Omit<Compromisso, 'id' | 'criado_em'>
     data_hora: Timestamp.fromDate(new Date(c.data_hora)),
     criado_em: serverTimestamp(),
   });
+  // Cria notificações para o advogado e/ou cliente em segundo plano (não bloqueia)
+  void agendarNotificacaoCompromisso({ ...c, id: ref.id }).catch((e) =>
+    console.error('Falha ao criar notificação de compromisso:', e),
+  );
   return ref.id;
 }
 
 export async function deleteCompromisso(id: string): Promise<void> {
   await deleteDoc(doc(db, 'compromissos', id));
+}
+
+export async function updateCompromisso(id: string, dados: Partial<Compromisso>): Promise<void> {
+  await updateDoc(doc(db, 'compromissos', id), dados);
 }
 
 /* ============================================================
@@ -321,6 +342,265 @@ export async function listLogsAcesso(maxCount = 200): Promise<LogAcesso[]> {
   return list<LogAcesso>('logs_acesso', [orderBy('criado_em', 'desc'), limit(maxCount)]);
 }
 
+/* =============================================================
+ * NOTIFICAÇÕES (alertas em segundo plano)
+ *
+ * Criadas automaticamente pelo sistema quando:
+ * - Um compromisso é agendado  → notifica advogado + cliente
+ * - Uma mensagem é enviada      → notifica o destinatário
+ * - O verificador de lembretes encontra compromissos
+ *   próximos sem lembrete ainda → cria lembrete e marca
+ *   `lembrete_enviado = true`
+ *
+ * O processamento "em segundo plano" é feito pelo
+ * NotificacaoProvider (setInterval) enquanto o usuário
+ * está autenticado na aplicação.
+ * ============================================================ */
+
+const LIMITE_LEMBRETE_HORAS = 24;
+
+export async function createNotificacao(
+  n: Omit<Notificacao, 'id' | 'criado_em' | 'atualizado_em' | 'lida' | 'push_enviado' | 'push_enviado_em'>,
+): Promise<string> {
+  const ref = await addDoc(collection(db, 'notificacoes'), {
+    ...n,
+    lida: false,
+    push_enviado: false,
+    criado_em: serverTimestamp(),
+    atualizado_em: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function listNotificoes(destinatarioId: string): Promise<Notificacao[]> {
+  return list<Notificacao>('notificacoes', [
+    where('destinatario_id', '==', destinatarioId),
+    orderBy('criado_em', 'desc'),
+    limit(100),
+  ]);
+}
+
+export async function listNotificoesNaoLidas(
+  destinatarioId: string,
+  maxCount = 50,
+): Promise<Notificacao[]> {
+  return list<Notificacao>('notificacoes', [
+    where('destinatario_id', '==', destinatarioId),
+    where('lida', '==', false),
+    orderBy('criado_em', 'desc'),
+    limit(maxCount),
+  ]);
+}
+
+export async function listNotificoesNaoLidasVisiveis(
+  _papel: Papel | null | undefined,
+  uid: string,
+  maxCount = 50,
+): Promise<Notificacao[]> {
+  return listNotificoesNaoLidas(uid, maxCount);
+}
+
+export async function contarNotificoesNaoLidas(destinatarioId: string): Promise<number> {
+  const arr = await listNotificoesNaoLidas(destinatarioId, 1000);
+  return arr.length;
+}
+
+export async function marcarNotificaoLida(id: string): Promise<void> {
+  await updateDoc(doc(db, 'notificacoes', id), { lida: true, atualizado_em: serverTimestamp() });
+}
+
+export async function marcarNotificoesLidasTodas(destinatarioId: string): Promise<void> {
+  const arr = await listNotificoesNaoLidas(destinatarioId, 1000);
+  await Promise.all(arr.map((n) => marcarNotificaoLida(n.id)));
+}
+
+export async function deleteNotificacao(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'notificacoes', id));
+}
+
+/** Remove notificações lidas mais antigas que `dias` dias (limpeza em segundo plano). */
+export async function limparNotificoesAntigas(dias = 30): Promise<number> {
+  const corte = new Date();
+  corte.setDate(corte.getDate() - dias);
+  const snap = await getDocs(
+    query(
+      collection(db, 'notificacoes'),
+      where('criado_em', '<=', Timestamp.fromDate(corte)),
+      where('lida', '==', true),
+      limit(500),
+    ),
+  );
+    await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
+  return snap.size;
+}
+
+/* -------------------------------------------------------------
+ * PUSH TOKENS (alertas com o app fechado)
+ *
+ * O token FCM de cada navegador/PWA é salvo em `push_tokens/{token}`
+ * para que o servidor `scripts/monitor-alertas.mjs` envie as
+ * notificações mesmo quando o aplicativo está fechado.
+ * ------------------------------------------------------------- */
+
+export async function salvarPushToken(uid: string, token: string): Promise<void> {
+  await setDoc(
+    doc(db, 'push_tokens', token),
+    {
+      uid,
+      dispositivo:
+        typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 300) : null,
+      criado_em: serverTimestamp(),
+      atualizado_em: serverTimestamp(),
+    },
+    { merge: true },
+  );
+}
+
+export async function removerPushToken(token: string): Promise<void> {
+  await deleteDoc(doc(db, 'push_tokens', token));
+}
+
+export async function removerPushTokensDoUsuario(uid: string): Promise<void> {
+  const arr = await list<{ uid: string }>('push_tokens', [
+    where('uid', '==', uid),
+    limit(500),
+  ]);
+  await Promise.all(arr.map((t) => removerPushToken(t.id)));
+}
+
+/** Coleta todos os destinatários de um compromisso (advogado + cliente via user_id). */
+async function destinatariosCompromisso(
+  c: Omit<Compromisso, 'criado_em'> & { processo?: Processo | null; id?: string },
+): Promise<Set<string>> {
+  const processo = c.processo ?? (c.processo_id ? await getProcesso(c.processo_id) : null);
+  if (!processo) return new Set();
+
+  const cliente = await getCliente(processo.cliente_id);
+  const dest = new Set<string>();
+  if (processo.advogado_id) dest.add(processo.advogado_id);
+  if (cliente?.user_id) dest.add(cliente.user_id);
+  return dest;
+}
+
+/** Cria notificações imediatas quando um compromisso é agendado. */
+export async function agendarNotificacaoCompromisso(
+  c: Omit<Compromisso, 'criado_em'> & { processo?: Processo | null; id?: string },
+): Promise<void> {
+  const dest = await destinatariosCompromisso(c);
+  if (dest.size === 0) return;
+
+  const titulo = `Compromisso: ${c.titulo}`;
+  const texto = `Você tem um(a) ${TIPO_COMPROMISSO_LABEL[c.tipo].toLowerCase()} agendado(a) para ${formatarDataHora(c.data_hora)}.`;
+
+  await Promise.all(
+    [...dest].map((uid) =>
+      createNotificacao({
+        destinatario_id: uid,
+        titulo,
+        mensagem: texto,
+        tipo: 'compromisso',
+        origem_id: c.id ?? null,
+        origem_tipo: 'compromisso',
+      }),
+    ),
+  );
+}
+
+/** Cria uma notificação para o destinatário quando uma mensagem é enviada. */
+export async function agendarNotificacaoMensagem(
+  m: Omit<Mensagem, 'criado_em'> & { id?: string },
+): Promise<void> {
+  const processo = await getProcesso(m.processo_id);
+  if (!processo) return;
+
+  const cliente = await getCliente(processo.cliente_id);
+
+  let destinatarioId: string | null = null;
+  if (cliente?.user_id === m.remetente_id) {
+    // Mensagem do cliente → notifica o advogado
+    destinatarioId = processo.advogado_id;
+  } else {
+    // Mensagem do advogado/admin → notifica o cliente
+    destinatarioId = cliente?.user_id ?? null;
+  }
+
+  if (!destinatarioId) return;
+
+  const titulo = 'Nova mensagem';
+  const texto =
+    cliente?.user_id === m.remetente_id
+      ? `Você recebeu uma nova mensagem de ${cliente?.nome ?? 'seu cliente'}.`
+      : 'Você recebeu uma nova mensagem do seu escritório.';
+
+  await createNotificacao({
+    destinatario_id: destinatarioId,
+    titulo,
+    mensagem: texto,
+    tipo: 'mensagem',
+    origem_id: m.id ?? null,
+    origem_tipo: 'mensagem',
+  });
+}
+
+/**
+ * Verificador de lembretes em segundo plano.
+ *
+ * Busca compromissos futuros (até LIMITE_LEMBRETE_HORAS à frente)
+ * sem lembrete enviado, cria notificações de lembrete para todos os
+ * interessados e marca `lembrete_enviado = true` no compromisso.
+ *
+ * Executado periodicamente pelo NotificacaoProvider enquanto o
+ * usuário está autenticado.
+ */
+export async function verificarLembretesCompromissos(): Promise<number> {
+  const agora = Date.now();
+  const limite = new Date(agora + LIMITE_LEMBRETE_HORAS * 3600 * 1000);
+
+  const arr = await list<Compromisso>('compromissos', [
+    where('data_hora', '>=', Timestamp.fromDate(new Date(agora))),
+    where('data_hora', '<=', Timestamp.fromDate(limite)),
+    where('lembrete_enviado', '==', false),
+    orderBy('data_hora', 'asc'),
+    limit(50),
+  ]);
+
+  let count = 0;
+  for (const c of arr) {
+    try {
+      await criarNotificacaoLembrete(c);
+      await updateCompromisso(c.id, { lembrete_enviado: true });
+      count++;
+    } catch {
+      // Ignora erros individuais sem interromper o loop
+    }
+  }
+  return count;
+}
+
+/** Cria notificações de lembrete para um compromisso específico. */
+async function criarNotificacaoLembrete(
+  c: Compromisso & { processo?: Processo | null },
+): Promise<void> {
+  const dest = await destinatariosCompromisso(c);
+  if (dest.size === 0) return;
+
+  const titulo = `Lembrete: ${c.titulo}`;
+  const texto = `Sua ${TIPO_COMPROMISSO_LABEL[c.tipo].toLowerCase()} está próxima. Data/hora: ${formatarDataHora(c.data_hora)}.`;
+
+  await Promise.all(
+    [...dest].map((uid) =>
+      createNotificacao({
+        destinatario_id: uid,
+        titulo,
+        mensagem: texto,
+        tipo: 'lembrete',
+        origem_id: c.id ?? null,
+        origem_tipo: 'compromisso',
+      }),
+    ),
+  );
+}
+
 /* ============================================================
  * HELPERS DE JOIN (ADMIN)
  * ============================================================ */
@@ -370,17 +650,27 @@ export async function listProcessosVisiveis(
   return listProcessos();
 }
 
+export async function listClientesByAdvogado(uid: string): Promise<Cliente[]> {
+  return list<Cliente>('clientes', [where('advogado_id', '==', uid)]);
+}
+
 export async function listClientesVisiveis(
   papel: Papel | null | undefined,
   uid: string,
 ): Promise<Cliente[]> {
   if (papel !== 'advogado') return listClientes();
 
-  // Advogado só vê os clientes dos processos que estão com ele.
+  // Advogado vê os clientes dos processos que estão com ele + os clientes que ele criou.
   const procs = await listProcessosByAdvogado(uid);
   const ids = [...new Set(procs.map((p) => p.cliente_id).filter(Boolean))];
-  const arr = await Promise.all(ids.map((id) => getCliente(id)));
-  return arr.filter((c): c is Cliente => c !== null).sort((a, b) => a.nome.localeCompare(b.nome));
+  const procClients = await Promise.all(ids.map((id) => getCliente(id)));
+  const meus = await listClientesByAdvogado(uid);
+
+  const mapa = new Map<string, Cliente>();
+  for (const c of [...procClients, ...meus]) {
+    if (c) mapa.set(c.id, c);
+  }
+  return [...mapa.values()].sort((a, b) => a.nome.localeCompare(b.nome));
 }
 
 export async function listProcessosComClientesVisiveis(
@@ -393,6 +683,25 @@ export async function listProcessosComClientesVisiveis(
   const clientes = await listClientesVisiveis('advogado', uid);
   const map = new Map(clientes.map((c) => [c.id, c]));
   return procs.map((p) => ({ ...p, cliente: map.get(p.cliente_id) ?? null }));
+}
+
+export async function listClientesComProcessosVisiveis(
+  papel: Papel | null | undefined,
+  uid: string,
+): Promise<(Cliente & { processos: Processo[] })[]> {
+  if (papel !== 'advogado') return listClientesComProcessos();
+
+  const [clients, procs] = await Promise.all([
+    listClientesVisiveis(papel, uid),
+    listProcessosVisiveis(papel, uid),
+  ]);
+  const byClient = new Map<string, Processo[]>();
+  procs.forEach((p) => {
+    const arr = byClient.get(p.cliente_id) ?? [];
+    arr.push(p);
+    byClient.set(p.cliente_id, arr);
+  });
+  return clients.map((c) => ({ ...c, processos: byClient.get(c.id) ?? [] }));
 }
 
 export async function listCompromissosVisiveis(
@@ -445,6 +754,66 @@ export async function listProximosCompromissosVisiveis(
   return all.filter((c) => !c.processo_id || procIds.has(c.processo_id)).slice(0, maxCount);
 }
 
+export async function listProcessosByClienteVisivel(
+  papel: Papel | null | undefined,
+  uid: string,
+  clienteId: string,
+): Promise<Processo[]> {
+  if (papel === 'advogado') {
+    // Consulta pelos processos do próprio advogado (filtro coberto pelas regras)
+    // e filtra pelo cliente em memória.
+    const procs = await listProcessosByAdvogado(uid);
+    return procs
+      .filter((p) => p.cliente_id === clienteId)
+      .sort((a, b) => new Date(b.atualizado_em).getTime() - new Date(a.atualizado_em).getTime());
+  }
+  return listProcessosByCliente(clienteId);
+}
+
+export async function listCompromissosByClienteVisivel(
+  papel: Papel | null | undefined,
+  uid: string,
+  clienteId: string,
+): Promise<(Compromisso & { processo: Processo | null })[]> {
+  if (papel === 'advogado') {
+    return listCompromissosByProcessos(await listProcessosByClienteVisivel(papel, uid, clienteId));
+  }
+  return listCompromissosByCliente(clienteId);
+}
+
+export async function listMensagensByClienteVisivel(
+  papel: Papel | null | undefined,
+  uid: string,
+  clienteId: string,
+): Promise<(Mensagem & { processo: Processo | null })[]> {
+  if (papel === 'advogado') {
+    const procs = await listProcessosByClienteVisivel(papel, uid, clienteId);
+    if (procs.length === 0) return [];
+    const procMap = new Map(procs.map((p) => [p.id, p]));
+    const procIds = procs.map((p) => p.id);
+    const all: Mensagem[] = [];
+    for (const pid of procIds) {
+      all.push(...(await listMensagens(pid)));
+    }
+    all.sort((a, b) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime());
+    return all.map((m) => ({ ...m, processo: m.processo_id ? procMap.get(m.processo_id) ?? null : null }));
+  }
+  return listMensagensByCliente(clienteId);
+}
+
+/** Agrupa compromissos pelos processos informados (com os dados do processo). */
+async function listCompromissosByProcessos(
+  procs: Processo[],
+): Promise<(Compromisso & { processo: Processo | null })[]> {
+  if (procs.length === 0) return [];
+  const procMap = new Map(procs.map((p) => [p.id, p]));
+  const procIds = procs.map((p) => p.id);
+  const all = await list<Compromisso>('compromissos', [orderBy('data_hora', 'asc')]);
+  return all
+    .filter((c) => c.processo_id && procIds.includes(c.processo_id))
+    .map((c) => ({ ...c, processo: c.processo_id ? procMap.get(c.processo_id) ?? null : null }));
+}
+
 export async function listCompromissosByCliente(
   clienteId: string,
 ): Promise<(Compromisso & { processo: Processo | null })[]> {
@@ -494,7 +863,10 @@ export const cliente = {
     return one<Perfil>('perfis', uid);
   },
 
-  async updatePerfil(uid: string, dados: Partial<Pick<Perfil, 'nome' | 'telefone' | 'foto_url'>>): Promise<void> {
+  async updatePerfil(
+    uid: string,
+    dados: Partial<Pick<Perfil, 'nome' | 'telefone'>> & { foto_url?: string | null },
+  ): Promise<void> {
     // O cliente só pode atualizar o próprio perfil.
     await updateDoc(doc(db, 'perfis', uid), {
       ...dados,
@@ -549,10 +921,14 @@ export const cliente = {
     return listMensagens(processoId);
   },
 
-  async createMensagem(userId: string, m: Omit<Mensagem, 'id' | 'criado_em'>): Promise<string> {
+      async createMensagem(userId: string, m: Omit<Mensagem, 'id' | 'criado_em'>): Promise<string> {
     const processo = await this.getProcesso(userId, m.processo_id);
     if (!processo) throw new Error('Permissão negada');
     const ref = await addDoc(collection(db, 'mensagens'), { ...m, criado_em: serverTimestamp() });
+    // Notifica o destinatário em segundo plano (não bloqueia a resposta)
+    void agendarNotificacaoMensagem({ ...m, id: ref.id }).catch((e) =>
+      console.error('Falha ao criar notificação de mensagem:', e),
+    );
     return ref.id;
   },
 
@@ -583,4 +959,4 @@ export const cliente = {
 };
 
 export { toTimestamp, serverTimestamp, Timestamp };
-export type { Papel, StatusProcesso, TipoCompromisso, TipoDocumento, CanalMensagem };
+export type { Papel, StatusProcesso, TipoCompromisso, TipoDocumento, CanalMensagem, Notificacao, TipoNotificacao };

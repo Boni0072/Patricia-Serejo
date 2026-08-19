@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { NotificacaoProvider } from './context/NotificacaoContext';
 import type { Papel } from './types/database';
 
 import SitePublico from './pages/publico/SitePublico';
@@ -29,6 +30,7 @@ import AdminMensagens from './pages/admin/AdminMensagens';
 import AdminAgenda from './pages/admin/AdminAgenda';
 import AdminConteudo from './pages/admin/AdminConteudo';
 import AdminLogs from './pages/admin/AdminLogs';
+import AdminNotificacoes from './pages/admin/AdminNotificacoes';
 
 import RotaProtegida from './components/RotaProtegida';
 
@@ -88,13 +90,14 @@ function Roteador() {
       >
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<AdminDashboard />} />
-        <Route path="clientes" element={<RotaProtegida papeis={['admin']}><AdminClientes /></RotaProtegida>} />
-        <Route path="clientes/:id" element={<RotaProtegida papeis={['admin']}><AdminClienteDetalhe /></RotaProtegida>} />
+        <Route path="clientes" element={<AdminClientes />} />
+        <Route path="clientes/:id" element={<AdminClienteDetalhe />} />
         <Route path="advogados" element={<RotaProtegida papeis={['admin']}><AdminAdvogados /></RotaProtegida>} />
         <Route path="processos" element={<AdminProcessos />} />
         <Route path="processos/:id" element={<AdminProcessoDetalhe />} />
         <Route path="mensagens" element={<AdminMensagens />} />
         <Route path="agenda" element={<AdminAgenda />} />
+        <Route path="notificacoes" element={<AdminNotificacoes />} />
         <Route path="conteudo" element={<RotaProtegida papeis={['admin']}><AdminConteudo /></RotaProtegida>} />
         <Route path="logs" element={<RotaProtegida papeis={['admin']}><AdminLogs /></RotaProtegida>} />
       </Route>
@@ -108,7 +111,9 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Roteador />
+        <NotificacaoProvider>
+          <Roteador />
+        </NotificacaoProvider>
       </BrowserRouter>
     </AuthProvider>
   );

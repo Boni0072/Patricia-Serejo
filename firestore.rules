@@ -79,10 +79,27 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // logs_acesso
+        // logs_acesso
     match /logs_acesso/{id} {
       allow read: if isAdmin();
       allow create: if isSignedIn();
+    }
+
+    // notificacoes — o próprio usuário lê/as atualiza; admin gerencia
+    match /notificacoes/{id} {
+      allow read: if isSignedIn() && resource.data.destinatario_id == uid();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (resource.data.destinatario_id == uid() || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // push_tokens — o usuário gerencia os próprios tokens de push
+    // (o servidor scripts/monitor-alertas.mjs lê via Admin SDK)
+    match /push_tokens/{token} {
+      allow create: if isSignedIn() && request.resource.data.uid == uid();
+      allow read: if isSignedIn() && (resource.data.uid == uid() || isAdmin());
+      allow update: if isSignedIn() && resource.data.uid == uid() && request.resource.data.uid == uid();
+      allow delete: if isSignedIn() && (resource.data.uid == uid() || isAdmin());
     }
 
     // consentimentos_lgpd

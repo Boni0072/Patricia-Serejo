@@ -3,6 +3,7 @@ import { FolderOpen, MessageSquare, Calendar, User, LogOut, Menu, X, Home, Scale
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import Logo from '../../components/Logo';
+import NotificacaoBell from '../../components/NotificacaoBell';
 
 const navItems = [
   { to: '/portal/processos', label: 'Meus Processos', icon: FolderOpen },
@@ -106,6 +107,9 @@ export default function PortalLayout() {
 
       {/* Conteúdo */}
       <main className="flex-1 lg:ml-64 pt-16 lg:pt-0 min-h-screen">
+        <div className="fixed top-20 right-4 lg:top-4 lg:right-6 z-40">
+          <NotificacaoBell />
+        </div>
         <Outlet />
       </main>
     </div>

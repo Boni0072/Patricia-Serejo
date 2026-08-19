@@ -6,10 +6,11 @@ import {
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import Logo from '../../components/Logo';
+import NotificacaoBell from '../../components/NotificacaoBell';
 
 const navItems = [
   { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
-  { to: '/admin/clientes', label: 'Clientes', icon: Users, adminOnly: true },
+  { to: '/admin/clientes', label: 'Clientes', icon: Users, adminOnly: false },
   { to: '/admin/advogados', label: 'Advogados', icon: Scale, adminOnly: true },
   { to: '/admin/processos', label: 'Processos', icon: FolderOpen, adminOnly: false },
   { to: '/admin/mensagens', label: 'Mensagens', icon: MessageSquare, adminOnly: false },
@@ -112,6 +113,9 @@ export default function AdminLayout() {
       </div>
 
       <main className="flex-1 lg:ml-64 pt-16 lg:pt-0 min-h-screen">
+        <div className="fixed top-20 right-4 lg:top-4 lg:right-6 z-40">
+          <NotificacaoBell />
+        </div>
         <Outlet />
       </main>
     </div>

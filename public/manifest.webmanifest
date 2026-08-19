@@ -1,0 +1,25 @@
+{
+  "name": "Patricia Cristiane Serejo Advocacia",
+  "short_name": "PCS Advocacia",
+  "description": "Portal de Advocacia para gestão de clientes, processos, mensagens e agenda.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f5ede3",
+  "theme_color": "#5b0d22",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/maskable_icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

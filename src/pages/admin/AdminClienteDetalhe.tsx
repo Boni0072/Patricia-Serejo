@@ -33,7 +33,7 @@ interface MensagemComProcesso extends Mensagem {
 
 export default function AdminClienteDetalhe() {
   const { id } = useParams() as { id: string };
-  const { user } = useAuth();
+  const { user, perfil } = useAuth();
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [processos, setProcessos] = useState<Processo[]>([]);
   const [compromissos, setCompromissos] = useState<CompromissoComProcesso[]>([]);
@@ -80,9 +80,9 @@ export default function AdminClienteDetalhe() {
       cpf: c.cpf || '', endereco: c.endereco || '', observacoes: c.observacoes || '',
     });
     const [procs, comps, msgs] = await Promise.all([
-      db.listProcessosByCliente(id),
-      db.listCompromissosByCliente(id),
-      db.listMensagensByCliente(id),
+      db.listProcessosByClienteVisivel(perfil?.papel, user?.uid ?? '', id),
+      db.listCompromissosByClienteVisivel(perfil?.papel, user?.uid ?? '', id),
+      db.listMensagensByClienteVisivel(perfil?.papel, user?.uid ?? '', id),
     ]);
     setProcessos(procs);
     setCompromissos(comps);
@@ -117,7 +117,9 @@ export default function AdminClienteDetalhe() {
       await db.createProcesso({
         numero: formProc.numero, titulo: formProc.titulo,
         area_direito: formProc.area_direito, status: formProc.status,
-        cliente_id: id, descricao: formProc.descricao || null, advogado_id: null,
+        cliente_id: id, descricao: formProc.descricao || null,
+        // Advogado cria o processo vinculado a ele; admin cria sem vínculo.
+        advogado_id: perfil?.papel === 'advogado' ? user?.uid ?? null : null,
       });
       toast.sucesso('Processo criado!');
       setModalProc(false);

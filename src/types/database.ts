@@ -32,6 +32,7 @@ export interface Perfil {
 export interface Cliente {
   id: string;
   user_id: string | null;
+  advogado_id: string | null;
   nome: string;
   email: string;
   telefone: string | null;
@@ -128,6 +129,49 @@ export interface LogAcesso {
   ip: string | null;
   acao: string;
   criado_em: string;
+}
+
+/* =========================================================
+   NOTIFICAÇÕES (alertas em segundo plano)
+   Geradas automaticamente pelo sistema quando há novas
+   mensagens, compromissos agendados ou lembretes de
+   agenda próximos. Processadas em segundo plano pelo
+   NotificacaoProvider enquanto o usuário está logado.
+   ========================================================= */
+
+export type TipoNotificacao = 'compromisso' | 'mensagem' | 'lembrete';
+
+export type DestinoNotificacao = 'cliente' | 'advogado' | 'admin';
+
+export interface Notificacao {
+  id: string;
+  destinatario_id: string;
+  titulo: string;
+  mensagem: string;
+  tipo: TipoNotificacao;
+  origem_id: string | null;
+  origem_tipo: 'compromisso' | 'mensagem' | null;
+  lida: boolean;
+  /** Campo controlado pelo servidor de push (scripts/monitor-alertas.mjs). */
+  push_enviado?: boolean | null;
+  /** Campo controlado pelo servidor de push (scripts/monitor-alertas.mjs). */
+  push_enviado_em?: string | null;
+  criado_em: string;
+  atualizado_em: string;
+}
+
+/* =========================================================
+   PUSH TOKENS (alertas com o app fechado)
+   Cada navegador/PWA registra um token FCM em
+   `push_tokens/{token}` para o servidor de push disparar
+   notificações mesmo quando o aplicativo está fechado.
+   ========================================================= */
+
+export interface PushToken {
+  uid: string;
+  dispositivo: string | null;
+  criado_em: string;
+  atualizado_em: string;
 }
 
 export const STATUS_PROCESSO_LABEL: Record<StatusProcesso, string> = {

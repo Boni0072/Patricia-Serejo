@@ -19,7 +19,7 @@ interface ClienteComProcessos extends Cliente {
 type ModoModal = 'fechado' | 'novo' | 'editar' | 'acesso';
 
 export default function AdminClientes() {
-  const { perfil } = useAuth();
+  const { user, perfil } = useAuth();
   const [clientes, setClientes] = useState<ClienteComProcessos[]>([]);
   const [busca, setBusca] = useState('');
   const [loading, setLoading] = useState(true);
@@ -37,9 +37,16 @@ export default function AdminClientes() {
   }, []);
 
   const carregar = async () => {
-    const data = await db.listClientesComProcessos();
-    setClientes(data);
-    setLoading(false);
+    try {
+      const papel = perfil?.papel ?? 'admin';
+      const uid = user?.uid ?? '';
+      const data = await db.listClientesComProcessosVisiveis(papel, uid);
+      setClientes(data);
+      setLoading(false);
+    } catch {
+      setLoading(false);
+      toast.erro('Erro ao carregar os clientes. Verifique sua permissão de acesso.');
+    }
   };
 
   const filtrados = clientes.filter((c) => {
@@ -93,6 +100,8 @@ export default function AdminClientes() {
       cpf: form.cpf || null,
       endereco: form.endereco || null,
       observacoes: form.observacoes || null,
+      // Advogado cria o cliente vinculado a ele; admin cria sem vínculo.
+      ...(perfil?.papel === 'advogado' ? { advogado_id: user?.uid ?? null } : {}),
     };
     try {
       if (editando) {
@@ -122,6 +131,7 @@ export default function AdminClientes() {
         endereco: form.endereco || null,
         observacoes: form.observacoes || null,
         foto_url: fotoBase64,
+        ...(perfil?.papel === 'advogado' ? { advogado_id: user?.uid ?? null } : {}),
       } as Cliente);
 
       let uid: string | null = null;
@@ -358,12 +368,14 @@ export default function AdminClientes() {
                             <MailOpen size={14} /> Reenviar acesso
                           </button>
                         )}
+                        {perfil?.papel === 'admin' && (
                         <button
                           onClick={() => excluir(c)}
                           className="w-full flex items-center gap-2 px-3 py-2 text-sm text-danger-600 hover:bg-danger-50"
                         >
                           <Trash2 size={14} /> Excluir
                         </button>
+                        )}
                       </div>
                     )}
                   </td>
