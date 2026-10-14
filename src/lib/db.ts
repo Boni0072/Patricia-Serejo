@@ -94,7 +94,7 @@ export async function createPerfil(uid: string, p: Omit<Perfil, 'id' | 'criado_e
 
 export async function updatePerfil(
   uid: string,
-  dados: Partial<Pick<Perfil, 'nome' | 'telefone' | 'cpf' | 'foto_url'>>,
+  dados: Partial<Pick<Perfil, 'nome' | 'telefone' | 'cpf' | 'foto_url' | 'cliente_id'>>,
 ): Promise<void> {
   await updateDoc(doc(db, 'perfis', uid), {
     ...dados,
@@ -113,6 +113,54 @@ export async function updatePapelPerfil(uid: string, papel: Papel): Promise<void
 
 export async function deletePerfil(uid: string): Promise<void> {
   await deleteDoc(doc(db, 'perfis', uid));
+}
+
+/* ============================================================
+ * CONVITES DE ADVOGADO (auto-cadastro protegido por token)
+ * O admin gera um convite (token secreto) e envia o link por
+ * e-mail. Só quem tem um token válido e não consumido consegue
+ * criar uma conta com papel 'advogado'.
+ * ============================================================ */
+export interface ConviteAdvogado {
+  id: string;
+  email: string;
+  criado_por: string | null;
+  criado_em: string;
+  expira_em: string;
+  usado: boolean;
+  usado_por: string | null;
+}
+
+function gerarToken(tamanho = 32): string {
+  const arr = new Uint8Array(tamanho);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+const CONVITE_VALIDADE_MS = 7 * 24 * 60 * 60 * 1000; // 7 dias
+
+export async function criarConviteAdvogado(email: string, criadoPor: string | null): Promise<string> {
+  const token = gerarToken();
+  await setDoc(doc(db, 'convites_advogado', token), {
+    email: email.trim().toLowerCase(),
+    criado_por: criadoPor,
+    criado_em: serverTimestamp(),
+    expira_em: new Date(Date.now() + CONVITE_VALIDADE_MS).toISOString(),
+    usado: false,
+    usado_por: null,
+  });
+  return token;
+}
+
+export async function getConviteAdvogado(token: string): Promise<ConviteAdvogado | null> {
+  return one<ConviteAdvogado>('convites_advogado', token);
+}
+
+export async function consumirConviteAdvogado(token: string, uid: string): Promise<void> {
+  await updateDoc(doc(db, 'convites_advogado', token), {
+    usado: true,
+    usado_por: uid,
+  });
 }
 
 export async function listClientes(): Promise<Cliente[]> {

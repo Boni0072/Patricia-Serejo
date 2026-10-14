@@ -18,30 +18,43 @@ export default function PortalPerfil() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (perfil?.cliente_id) {
-      db.getCliente(perfil.cliente_id).then((c) => {
-        if (c) {
-          setCliente(c);
-          setNome(c.nome);
-          setTelefone(c.telefone || '');
+    const carregar = async () => {
+      if (!perfil) {
+        // Ainda carregando o perfil (ou usuário deslogou)
+        if (!user) setLoading(false);
+        return;
+      }
+      // Sempre parte dos dados do perfil — funciona para cliente, advogado e admin.
+      setNome(perfil.nome);
+      setTelefone(perfil.telefone || '');
+      // Se for cliente com registro vinculado, sincroniza com os dados do cliente.
+      if (perfil.cliente_id) {
+        try {
+          const c = await db.getCliente(perfil.cliente_id);
+          if (c) {
+            setCliente(c);
+            setNome(c.nome);
+            setTelefone(c.telefone || '');
+          }
+        } catch {
+          // Ignora — mantém os dados do perfil.
         }
-      })
-      .finally(() => setLoading(false));
-    } else if (perfil || !user) {
-      // Perfil existe mas não é cliente (admin/advogado), ou usuário deslogou
+      }
       setLoading(false);
-    }
+    };
+    carregar();
   }, [perfil, user]);
 
   const salvar = async () => {
-    if (!user || !cliente) return;
+    if (!user || !perfil) return;
     setSalvando(true);
     try {
-      // Atualiza tanto o perfil (para useAuth) quanto o cliente (para o admin)
-      await Promise.all([
-        db.cliente.updatePerfil(user.uid, { nome, telefone }),
-        db.updateCliente(cliente.id, { nome, telefone: telefone || null }),
-      ]);
+      // Sempre atualiza o perfil (usado pelo app todo, inclusive o nome no topo).
+      await db.cliente.updatePerfil(user.uid, { nome, telefone });
+      // Se for cliente com registro vinculado, sincroniza também o cliente (visão do admin).
+      if (cliente) {
+        await db.updateCliente(cliente.id, { nome, telefone: telefone || null });
+      }
       await refreshPerfil();
       toast.sucesso('Perfil atualizado!');
     } catch {
@@ -66,6 +79,11 @@ export default function PortalPerfil() {
       // limite de ~1MB por campo.
       const url = await uploadDocumento(`perfis/${user.uid}`, file);
       await db.cliente.updatePerfil(user.uid, { foto_url: url });
+      // Mantém a foto do registro de cliente em sincronia (usado pelas telas
+      // do admin), quando o cliente tem um registro vinculado.
+      if (cliente) {
+        await db.updateCliente(cliente.id, { foto_url: url });
+      }
       await refreshPerfil();
       toast.sucesso('Sua foto foi atualizada!');
     } catch (err) {
@@ -95,8 +113,8 @@ export default function PortalPerfil() {
           <div className="relative group shrink-0">
             <input type="file" accept="image/*" ref={fileInputRef} onChange={handleUploadFoto} className="hidden" />
             <img
-              src={cliente?.foto_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(cliente?.nome || 'C')}&background=0284c7&color=fff&size=128`}
-              alt={`Foto de ${cliente?.nome}`}
+              src={perfil?.foto_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(perfil?.nome || nome || 'C')}&background=0284c7&color=fff&size=128`}
+              alt={`Foto de ${perfil?.nome || nome}`}
               className="w-16 h-16 rounded-full object-cover bg-brand-100"
             />
             <button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity">
@@ -104,7 +122,7 @@ export default function PortalPerfil() {
             </button>
           </div>
           <div>
-            <p className="font-serif text-xl text-brand-900">{cliente?.nome}</p>
+            <p className="font-serif text-xl text-brand-900">{nome || perfil?.nome}</p>
             <p className="text-sm text-ink-500">
               {perfil?.papel === 'admin' ? 'Administrador' : perfil?.papel === 'advogado' ? 'Advogado(a)' : 'Cliente'}
             </p>

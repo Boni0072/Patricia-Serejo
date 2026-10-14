@@ -18,6 +18,7 @@ interface AuthContextValue {
   loading: boolean;
   signIn: (email: string, senha: string) => Promise<{ error: string | null; papel: Papel | null }>;
   signUp: (dados: SignUpDados) => Promise<{ error: string | null }>;
+  signUpAdvogado: (dados: SignUpAdvogadoDados) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: string | null }>;
   refreshPerfil: () => Promise<void>;
@@ -30,6 +31,16 @@ interface SignUpDados {
   telefone: string;
   cpf: string;
   advogado_id?: string | null;
+}
+
+interface SignUpAdvogadoDados {
+  nome: string;
+  email: string;
+  senha: string;
+  telefone: string;
+  cpf: string;
+  token: string;
+  foto_url?: string | null;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -110,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // cadastro/login — apenas não vincula automaticamente.
       try {
         console.log('[signUp] Criando cliente vinculado. advogado_id =', dados.advogado_id ?? null, '| uid =', uid);
-        await db.createCliente({
+        const clienteId = await db.createCliente({
           nome: dados.nome,
           email: dados.email,
           telefone: dados.telefone,
@@ -120,13 +131,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           user_id: uid,
           advogado_id: dados.advogado_id ?? null,
         });
-        console.log('[signUp] Cliente criado e vinculado com sucesso.');
+        // Vincula o perfil recém-criado ao registro de cliente, para que a
+        // página "Meu Perfil" encontre e atualize os dados corretamente.
+        await db.cliente.updatePerfil(uid, { cliente_id: clienteId });
+        console.log('[signUp] Cliente criado e vinculado com sucesso. cliente_id =', clienteId);
       } catch (e) {
         console.error('[signUp] Não foi possível criar o registro de cliente vinculado:', e);
       }
       (async () => {
         await db.cliente.createConsentimentoLgpd(uid);
         await registrarLogAcesso('cadastro', cred.user);
+      })();
+      return { error: null };
+    } catch (e) {
+      return { error: traduzErroAuth(e) };
+    }
+  }, [registrarLogAcesso]);
+
+  const signUpAdvogado = useCallback(async (dados: SignUpAdvogadoDados) => {
+    try {
+      // Valida o token de convite antes de criar qualquer conta.
+      const convite = await db.getConviteAdvogado(dados.token);
+      if (!convite || convite.usado) {
+        return { error: 'Convite inválido ou já utilizado.' };
+      }
+      if (new Date(convite.expira_em).getTime() < Date.now()) {
+        return { error: 'Este convite expirou. Peça um novo ao administrador.' };
+      }
+      if (convite.email.toLowerCase() !== dados.email.trim().toLowerCase()) {
+        return { error: 'O e-mail informado não corresponde ao do convite.' };
+      }
+
+      const cred = await createUserWithEmailAndPassword(auth, dados.email, dados.senha);
+      const uid = cred.user.uid;
+      // Perfil com papel 'advogado' — NÃO cria registro na coleção 'clientes'.
+      await db.createPerfil(uid, {
+        nome: dados.nome,
+        email: dados.email,
+        papel: 'advogado' as Papel,
+        telefone: dados.telefone,
+        cpf: dados.cpf,
+        cliente_id: null,
+        foto_url: dados.foto_url ?? null,
+      });
+      // Marca o convite como consumido por este usuário (regras exigem usado_por == uid()).
+      await db.consumirConviteAdvogado(dados.token, uid);
+      (async () => {
+        await db.cliente.createConsentimentoLgpd(uid);
+        await registrarLogAcesso('cadastro-advogado', cred.user);
       })();
       return { error: null };
     } catch (e) {
@@ -159,6 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     signIn,
     signUp,
+    signUpAdvogado,
     signOut,
     resetPassword,
     refreshPerfil,

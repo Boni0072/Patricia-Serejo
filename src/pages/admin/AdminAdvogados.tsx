@@ -9,10 +9,10 @@ import { formatarData, formatarTelefone } from '../../lib/utils';
 import { toast } from '../../components/Toast';
 import Modal from '../../components/Modal';
 
-type ModoModal = 'fechado' | 'novo' | 'editar';
+type ModoModal = 'fechado' | 'novo' | 'editar' | 'convite';
 
 export default function AdminAdvogados() {
-  const { perfil } = useAuth();
+  const { user, perfil } = useAuth();
   const [advogados, setAdvogados] = useState<Perfil[]>([]);
   const [loading, setLoading] = useState(true);
   const [modo, setModo] = useState<ModoModal>('fechado');
@@ -25,6 +25,8 @@ export default function AdminAdvogados() {
   const [removerFoto, setRemoverFoto] = useState(false);
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const fotoInputRef = useRef<HTMLInputElement>(null);
+  const [conviteForm, setConviteForm] = useState({ nome: '', email: '' });
+  const [gerandoConvite, setGerandoConvite] = useState(false);
 
   const podeGerenciar = perfil?.papel === 'admin';
 
@@ -59,6 +61,52 @@ export default function AdminAdvogados() {
 
   const fecharModal = () => {
     setModo('fechado');
+    setEditando(null);
+  };
+
+  const abrirConvite = (a?: Perfil) => {
+    setMenuId(null);
+    setConviteForm({ nome: a?.nome ?? '', email: a?.email ?? '' });
+    setModo('convite');
+  };
+
+  const enviarConviteDoModal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const nome = conviteForm.nome.trim();
+    const email = conviteForm.email.trim();
+    if (!email) {
+      toast.erro('Informe o e-mail do destinatário.');
+      return;
+    }
+    setGerandoConvite(true);
+    try {
+      // Gera um token de convite vinculado a este e-mail e monta o link de
+      // auto-cadastro de ADVOGADO (não de cliente).
+      const token = await db.criarConviteAdvogado(email, user?.uid ?? null);
+      const linkCadastro = `${window.location.origin}/cadastro-advogado?token=${token}`;
+      const saudacao = nome ? `Olá, ${nome}!` : 'Olá!';
+      const assunto = 'Convite para integrar a equipe como advogado(a)';
+      const corpo =
+        `${saudacao}\n\n` +
+        `Você foi convidado para fazer parte da equipe do escritório como advogado(a).\n` +
+        `Clique no link abaixo para criar sua conta de acesso à área do advogado:\n${linkCadastro}\n\n` +
+        `Por segurança, o link é válido por 7 dias e só pode ser usado uma vez, pelo e-mail ${email}.\n\n` +
+        `— Patricia Cristiane Serejo Advocacia`;
+      window.location.href =
+        `mailto:${email}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`;
+      toast.sucesso('Abrindo seu aplicativo de e-mail com o convite pronto…');
+      setModo('fechado');
+    } catch (err) {
+      console.error('[enviarConviteDoModal] Erro ao gerar convite:', {
+        code: (err as { code?: string })?.code,
+        message: (err as { message?: string })?.message,
+        email,
+        uid: user?.uid ?? null,
+      });
+      toast.erro('Erro ao gerar o convite. Tente novamente.');
+    } finally {
+      setGerandoConvite(false);
+    }
   };
 
   const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -186,9 +234,14 @@ export default function AdminAdvogados() {
           <h1 className="font-serif text-3xl text-brand-900">Advogados</h1>
           <p className="text-ink-500 mt-1">Gestão da equipe do escritório.</p>
         </div>
-        <button onClick={abrirNovo} className="btn-primary">
-          <Plus size={18} /> Novo advogado
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => abrirConvite()} className="btn-secondary">
+            <Mail size={18} /> Enviar convite
+          </button>
+          <button onClick={abrirNovo} className="btn-primary">
+            <Plus size={18} /> Novo advogado
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -267,7 +320,7 @@ export default function AdminAdvogados() {
       )}
 
       {/* Modal Novo / Editar advogado */}
-      <Modal aberto={modo !== 'fechado'} onFechar={fecharModal} titulo={modo === 'editar' ? 'Editar advogado' : 'Novo advogado'}>
+      <Modal aberto={modo === 'novo' || modo === 'editar'} onFechar={fecharModal} titulo={modo === 'editar' ? 'Editar advogado' : 'Novo advogado'}>
         <form onSubmit={salvar} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-ink-700 mb-1.5">Nome completo *</label>
@@ -372,6 +425,66 @@ export default function AdminAdvogados() {
             <button type="button" onClick={fecharModal} className="btn-secondary">Cancelar</button>
             <button type="submit" disabled={salvando} className="btn-primary">
               {salvando ? (modo === 'editar' ? 'Salvando…' : 'Cadastrando…') : (modo === 'editar' ? 'Salvar alterações' : 'Cadastrar e enviar acesso')}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal Enviar convite — monta e-mail com link para /cadastro */}
+      <Modal aberto={modo === 'convite'} onFechar={fecharModal} titulo="Enviar convite de cadastro">
+        <form onSubmit={enviarConviteDoModal} className="space-y-4">
+          <div className="bg-brand-50 border border-brand-100 rounded-lg p-4 flex gap-3">
+            <Mail size={20} className="text-brand-700 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm text-ink-700">
+                Vamos abrir seu aplicativo de e-mail com uma mensagem pronta convidando o
+                destinatário a criar o acesso de <strong>advogado</strong> à área da equipe.
+                Você revisa e envia.
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-ink-700 mb-1.5">Nome do destinatário</label>
+            <input
+              list="convite-advogados"
+              value={conviteForm.nome}
+              onChange={(e) => setConviteForm((v) => ({ ...v, nome: e.target.value }))}
+              className="input-field"
+              placeholder="Ex.: Maria Silva"
+            />
+            <datalist id="convite-advogados">
+              {advogados.map((a) => (
+                <option key={a.id} value={a.nome} />
+              ))}
+            </datalist>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-ink-700 mb-1.5">E-mail do destinatário *</label>
+            <input
+              type="email"
+              required
+              list="convite-advogados-emails"
+              value={conviteForm.email}
+              onChange={(e) => setConviteForm((v) => ({ ...v, email: e.target.value }))}
+              className="input-field"
+              placeholder="cliente@email.com"
+            />
+            <datalist id="convite-advogados-emails">
+              {advogados.map((a) => (
+                <option key={a.id} value={a.email} />
+              ))}
+            </datalist>
+            <p className="text-xs text-ink-400 mt-1">
+              Dica: você pode digitar ou escolher um advogado já cadastrado na lista.
+            </p>
+          </div>
+
+          <div className="flex gap-3 justify-end pt-2">
+            <button type="button" onClick={fecharModal} className="btn-secondary">Cancelar</button>
+            <button type="submit" disabled={gerandoConvite} className="btn-primary">
+              {gerandoConvite ? 'Gerando…' : 'Preparar e-mail de convite'}
             </button>
           </div>
         </form>

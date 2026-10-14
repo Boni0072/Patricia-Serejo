@@ -4,7 +4,7 @@ import { Mail, Lock, User, Phone, ChevronLeft, AlertCircle, ArrowRight, ShieldCh
 import { useAuth } from '../../context/AuthContext';
 import { toast } from '../../components/Toast';
 import Logo from '../../components/Logo';
-import { apenasDigitos } from '../../lib/utils';
+import { apenasDigitos, mascaraCPF } from '../../lib/utils';
 
 export default function CadastroPage() {
   const { signUp } = useAuth();
@@ -193,9 +193,11 @@ export default function CadastroPage() {
                 <input
                   required
                   value={form.cpf}
-                  onChange={(e) => set('cpf', e.target.value)}
+                  onChange={(e) => set('cpf', mascaraCPF(e.target.value))}
                   className="input-field"
                   placeholder="000.000.000-00"
+                  inputMode="numeric"
+                  maxLength={14}
                 />
               </div>
             </div>

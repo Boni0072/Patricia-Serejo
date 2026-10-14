@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, FolderOpen, MessageSquare, Calendar,
-  FileText, ScrollText, LogOut, Menu, X, Home, Scale,
+  FileText, ScrollText, LogOut, Menu, X, Home, Scale, UserCog,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
@@ -17,6 +17,7 @@ const navItems = [
   { to: '/admin/agenda', label: 'Agenda', icon: Calendar, adminOnly: false },
   { to: '/admin/conteudo', label: 'Conteúdo do Site', icon: FileText, adminOnly: true },
   { to: '/admin/logs', label: 'Logs de Acesso', icon: ScrollText, adminOnly: true },
+  { to: '/admin/perfil', label: 'Meu Perfil', icon: UserCog, adminOnly: false },
 ];
 
 export default function AdminLayout() {
@@ -59,8 +60,28 @@ export default function AdminLayout() {
         </nav>
         <div className="p-4 border-t border-brand-800">
           <div className="px-4 py-2 mb-2">
-            <p className="text-sm text-white font-medium truncate">{perfil?.nome}</p>
-            <p className="text-xs text-brand-400 capitalize">{perfil?.papel}</p>
+            <button
+              type="button"
+              onClick={() => navigate('/admin/perfil')}
+              className="w-full flex items-center gap-3 text-left rounded-lg px-1 py-1 hover:bg-brand-800 transition-colors"
+              title="Editar meu perfil"
+            >
+              {perfil?.foto_url ? (
+                <img
+                  src={perfil.foto_url}
+                  alt={`Foto de ${perfil.nome}`}
+                  className="w-9 h-9 rounded-full object-cover bg-brand-800 shrink-0"
+                />
+              ) : (
+                <span className="w-9 h-9 rounded-full bg-brand-800 flex items-center justify-center text-sm font-semibold text-gold-400 shrink-0">
+                  {(perfil?.nome || '?').charAt(0).toUpperCase()}
+                </span>
+              )}
+              <span className="min-w-0">
+                <span className="block text-sm text-white font-medium truncate">{perfil?.nome}</span>
+                <span className="block text-xs text-brand-400 capitalize">{perfil?.papel}</span>
+              </span>
+            </button>
           </div>
           <button
             onClick={handleLogout}

@@ -63,3 +63,13 @@ export function formatarCPF(cpf: string): string {
   }
   return cpf;
 }
+
+// Máscara progressiva de CPF para uso em inputs: aplica 000.000.000-00
+// conforme o usuário digita (aceita no máximo 11 dígitos).
+export function mascaraCPF(valor: string): string {
+  const limpo = valor.replace(/\D/g, '').slice(0, 11);
+  if (limpo.length <= 3) return limpo;
+  if (limpo.length <= 6) return `${limpo.slice(0, 3)}.${limpo.slice(3)}`;
+  if (limpo.length <= 9) return `${limpo.slice(0, 3)}.${limpo.slice(3, 6)}.${limpo.slice(6)}`;
+  return `${limpo.slice(0, 3)}.${limpo.slice(3, 6)}.${limpo.slice(6, 9)}-${limpo.slice(9)}`;
+}

@@ -16,6 +16,19 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // convites_advogado — auto-cadastro de advogados protegido por token.
+    // O id do documento É o token secreto (64 hex). Permitimos 'get' público
+    // (quem tem o link consegue validar o token) mas NÃO 'list' (não expõe a
+    // coleção). Criação só pelo admin. Consumo ('usado') pelo próprio usuário
+    // recém-criado, apenas marcando como usado por ele mesmo.
+    match /convites_advogado/{token} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isSignedIn() && resource.data.usado == false && request.resource.data.usado == true && request.resource.data.usado_por == uid();
+      allow delete: if isAdmin();
+    }
+
     // clientes
     match /clientes/{id} {
       allow read: if isSignedIn() && (resource.data.user_id == uid() || isAdmin() || (exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'advogado'));

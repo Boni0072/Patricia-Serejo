@@ -6,6 +6,7 @@ import type { Papel } from './types/database';
 import SitePublico from './pages/publico/SitePublico';
 import LoginPage from './pages/auth/LoginPage';
 import CadastroPage from './pages/auth/CadastroPage';
+import CadastroAdvogadoPage from './pages/auth/CadastroAdvogadoPage';
 import EsqueciSenhaPage from './pages/auth/EsqueciSenhaPage';
 import RedefinirSenhaPage from './pages/auth/RedefinirSenhaPage';
 import SetupPage from './pages/auth/SetupPage';
@@ -58,6 +59,7 @@ function Roteador() {
       {/* Auth */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/cadastro" element={<CadastroPage />} />
+      <Route path="/cadastro-advogado" element={<CadastroAdvogadoPage />} />
       <Route path="/esqueci-senha" element={<EsqueciSenhaPage />} />
       <Route path="/redefinir-senha" element={<RedefinirSenhaPage />} />
       <Route path="/setup" element={<SetupPage />} />
@@ -88,8 +90,8 @@ function Roteador() {
           </RotaProtegida>
         }
       >
-        <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<AdminDashboard />} />
+        <Route path="perfil" element={<PortalPerfil />} />
         <Route path="clientes" element={<AdminClientes />} />
         <Route path="clientes/:id" element={<AdminClienteDetalhe />} />
         <Route path="advogados" element={<RotaProtegida papeis={['admin']}><AdminAdvogados /></RotaProtegida>} />
