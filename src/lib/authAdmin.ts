@@ -33,6 +33,8 @@ export function codErroAuth(e: unknown): string {
     return 'senha-fraca';
   if (code.includes('invalid-email') || msg.includes('invalid-email'))
     return 'email-invalido';
+  if (code.includes('admin-only-operation') || msg.includes('admin-only-operation'))
+    return 'operacao-bloqueada';
   if (code.includes('operation-not-allowed') || msg.includes('operation-not-allowed'))
     return 'operacao-bloqueada';
   if (code.includes('too-many-requests') || code.includes('rate'))
@@ -52,7 +54,18 @@ function gerarSenhaTemporaria(tamanho = 24): string {
 export async function criarContaCliente(params: CriarContaClienteParams): Promise<string> {
   const senhaTemp = gerarSenhaTemporaria();
 
-  const cred = await createUserWithEmailAndPassword(authAdmin, params.email, senhaTemp);
+  let cred;
+  try {
+    cred = await createUserWithEmailAndPassword(authAdmin, params.email, senhaTemp);
+  } catch (e) {
+    // Exibe o erro real do Firebase no console para diagnóstico.
+    console.error('[criarContaCliente] Falha ao criar usuário:', {
+      code: (e as { code?: string })?.code,
+      message: (e as Error)?.message,
+      email: params.email,
+    });
+    throw e;
+  }
   const uid = cred.user.uid;
 
   await createPerfil(uid, {

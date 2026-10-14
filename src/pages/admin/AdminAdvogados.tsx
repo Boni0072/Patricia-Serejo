@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
-import { Plus, Mail, Phone, MoreVertical, MailOpen, AlertCircle, Scale, UserCheck, Trash2, Pencil } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Plus, Mail, Phone, MoreVertical, MailOpen, AlertCircle, Scale, UserCheck, Trash2, Pencil, Upload, X } from 'lucide-react';
 import * as db from '../../lib/db';
 import { criarContaAdvogado, reenviarAcessoAdvogado, codErroAuth, deleteUser } from '../../lib/authAdmin';
+import { uploadDocumento } from '../../lib/storage';
 import { useAuth } from '../../context/AuthContext';
 import type { Perfil } from '../../types/database';
 import { formatarData, formatarTelefone } from '../../lib/utils';
@@ -19,6 +20,11 @@ export default function AdminAdvogados() {
   const [editando, setEditando] = useState<Perfil | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [menuId, setMenuId] = useState<string | null>(null);
+  const [fotoFile, setFotoFile] = useState<File | null>(null);
+  const [fotoPreview, setFotoPreview] = useState<string | null>(null);
+  const [removerFoto, setRemoverFoto] = useState(false);
+  const [uploadingFoto, setUploadingFoto] = useState(false);
+  const fotoInputRef = useRef<HTMLInputElement>(null);
 
   const podeGerenciar = perfil?.papel === 'admin';
 
@@ -35,6 +41,9 @@ export default function AdminAdvogados() {
   const abrirNovo = () => {
     setEditando(null);
     setForm({ nome: '', email: '', telefone: '', cpf: '' });
+    setFotoFile(null);
+    setFotoPreview(null);
+    setRemoverFoto(false);
     setModo('novo');
   };
 
@@ -42,11 +51,34 @@ export default function AdminAdvogados() {
     setMenuId(null);
     setEditando(a);
     setForm({ nome: a.nome, email: a.email, telefone: a.telefone ?? '', cpf: a.cpf ?? '' });
+    setFotoFile(null);
+    setFotoPreview(a.foto_url ?? null);
+    setRemoverFoto(false);
     setModo('editar');
   };
 
   const fecharModal = () => {
     setModo('fechado');
+  };
+
+  const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 700 * 1024) {
+      toast.erro('Imagem muito grande (máx. 700KB).');
+      if (fotoInputRef.current) fotoInputRef.current.value = '';
+      return;
+    }
+    setFotoFile(file);
+    setRemoverFoto(false);
+    setFotoPreview(URL.createObjectURL(file));
+  };
+
+  const removerFotoSelecionada = () => {
+    setFotoFile(null);
+    setFotoPreview(null);
+    setRemoverFoto(true);
+    if (fotoInputRef.current) fotoInputRef.current.value = '';
   };
 
   const salvar = async (e: React.FormEvent) => {
@@ -56,11 +88,24 @@ export default function AdminAdvogados() {
     // trocar e-mail exige alterar também o usuário no Firebase Auth).
     if (modo === 'editar' && editando) {
       try {
-        await db.updatePerfil(editando.id, {
+        const dados: Parameters<typeof db.updatePerfil>[1] = {
           nome: form.nome,
           telefone: form.telefone || null,
           cpf: form.cpf || null,
-        });
+        };
+        // Foto: se um novo arquivo foi escolhido, converte p/ base64 e salva;
+        // se o usuário pediu para remover, limpa o campo.
+        if (fotoFile) {
+          setUploadingFoto(true);
+          try {
+            dados.foto_url = await uploadDocumento(`perfis/${editando.id}`, fotoFile);
+          } finally {
+            setUploadingFoto(false);
+          }
+        } else if (removerFoto) {
+          dados.foto_url = null;
+        }
+        await db.updatePerfil(editando.id, dados);
         toast.sucesso('Advogado atualizado!');
         setModo('fechado');
         setEditando(null);
@@ -72,11 +117,20 @@ export default function AdminAdvogados() {
       return;
     }
     try {
-      await criarContaAdvogado({
+      const uid = await criarContaAdvogado({
         nome: form.nome,
         email: form.email,
         telefone: form.telefone || '',
       });
+      // Se uma foto foi escolhida no cadastro, salva como base64 no perfil.
+      if (fotoFile && uid) {
+        try {
+          const url = await uploadDocumento(`perfis/${uid}`, fotoFile);
+          await db.updatePerfil(uid, { foto_url: url });
+        } catch {
+          // Não falha o cadastro se apenas a foto der erro.
+        }
+      }
       toast.sucesso('Advogado cadastrado! E-mail de acesso enviado para ' + form.email);
       setModo('fechado');
       carregar();
@@ -150,9 +204,17 @@ export default function AdminAdvogados() {
           {advogados.map((a) => (
             <div key={a.id} className="card p-6 relative group">
               <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl bg-brand-100 flex items-center justify-center">
-                  <Scale size={22} className="text-brand-700" />
-                </div>
+                {a.foto_url ? (
+                  <img
+                    src={a.foto_url}
+                    alt={`Foto de ${a.nome}`}
+                    className="w-12 h-12 rounded-xl object-cover bg-brand-100"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-xl bg-brand-100 flex items-center justify-center">
+                    <Scale size={22} className="text-brand-700" />
+                  </div>
+                )}
                 <div className="relative">
                   <button
                     onClick={() => setMenuId(menuId === a.id ? null : a.id)}
@@ -237,6 +299,61 @@ export default function AdminAdvogados() {
               <input value={form.cpf} onChange={(e) => setForm({ ...form, cpf: e.target.value })} className="input-field" placeholder="000.000.000-00" />
             </div>
           )}
+
+          {/* Foto / avatar do advogado */}
+          <div>
+            <label className="block text-sm font-medium text-ink-700 mb-1.5">Foto do advogado</label>
+            <div className="flex items-center gap-4">
+              <div className="relative group shrink-0">
+                <input
+                  type="file"
+                  accept="image/*"
+                  ref={fotoInputRef}
+                  onChange={handleFotoChange}
+                  className="hidden"
+                />
+                <img
+                  src={
+                    (fotoPreview && !removerFoto)
+                      ? fotoPreview
+                      : `https://ui-avatars.com/api/?name=${encodeURIComponent(form.nome || 'A')}&background=0284c7&color=fff&size=128`
+                  }
+                  alt="Prévia da foto"
+                  className="w-16 h-16 rounded-full object-cover bg-brand-100"
+                />
+                <button
+                  type="button"
+                  onClick={() => fotoInputRef.current?.click()}
+                  disabled={uploadingFoto}
+                  className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Escolher foto"
+                >
+                  {uploadingFoto ? '...' : <Upload size={20} />}
+                </button>
+              </div>
+              <div className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => fotoInputRef.current?.click()}
+                  disabled={uploadingFoto}
+                  className="btn-secondary text-sm"
+                >
+                  <Upload size={14} /> Escolher imagem
+                </button>
+                {fotoPreview && !removerFoto && (
+                  <button
+                    type="button"
+                    onClick={removerFotoSelecionada}
+                    disabled={uploadingFoto}
+                    className="block text-sm text-danger-600 hover:text-danger-700"
+                  >
+                    <X size={14} className="inline" /> Remover foto
+                  </button>
+                )}
+                <p className="text-xs text-ink-400">JPG ou PNG, máx. 700KB.</p>
+              </div>
+            </div>
+          </div>
 
           {modo === 'novo' && (
             <div className="bg-brand-50 border border-brand-100 rounded-lg p-4 flex gap-3">

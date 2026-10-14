@@ -29,6 +29,7 @@ interface SignUpDados {
   senha: string;
   telefone: string;
   cpf: string;
+  advogado_id?: string | null;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -102,6 +103,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         telefone: dados.telefone,
         cpf: dados.cpf,
       });
+      // Cria o registro do cliente na coleção 'clientes' já vinculado a este
+      // usuário (user_id) e ao advogado que enviou o convite (advogado_id),
+      // para que ele apareça na lista de clientes do advogado responsável.
+      // Se o vínculo falhar (ex.: regras ainda não publicadas), não impede o
+      // cadastro/login — apenas não vincula automaticamente.
+      try {
+        console.log('[signUp] Criando cliente vinculado. advogado_id =', dados.advogado_id ?? null, '| uid =', uid);
+        await db.createCliente({
+          nome: dados.nome,
+          email: dados.email,
+          telefone: dados.telefone,
+          cpf: dados.cpf,
+          endereco: null,
+          observacoes: null,
+          user_id: uid,
+          advogado_id: dados.advogado_id ?? null,
+        });
+        console.log('[signUp] Cliente criado e vinculado com sucesso.');
+      } catch (e) {
+        console.error('[signUp] Não foi possível criar o registro de cliente vinculado:', e);
+      }
       (async () => {
         await db.cliente.createConsentimentoLgpd(uid);
         await registrarLogAcesso('cadastro', cred.user);

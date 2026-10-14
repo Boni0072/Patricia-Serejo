@@ -19,7 +19,14 @@ service cloud.firestore {
     // clientes
     match /clientes/{id} {
       allow read: if isSignedIn() && (resource.data.user_id == uid() || isAdmin() || (exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'advogado'));
-      allow create: if isSignedIn() && (isAdmin() || (exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'advogado'));
+      // Criação: admin/advogado criam livremente; um cliente recém-cadastrado
+      // pode criar apenas o PRÓPIO registro (user_id == uid()), o que ocorre
+      // no auto-cadastro via link de convite.
+      allow create: if isSignedIn() && (
+        isAdmin() ||
+        request.resource.data.user_id == uid() ||
+        (exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'advogado')
+      );
       allow update: if isSignedIn() && (isAdmin() || (exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'advogado'));
       allow delete: if isAdmin();
     }

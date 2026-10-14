@@ -6,6 +6,7 @@ import {
   Send, Trash2, Upload,
 } from 'lucide-react';
 import * as db from '../../lib/db';
+import { uploadDocumento } from '../../lib/storage';
 import { useAuth } from '../../context/AuthContext';
 import type {
   Cliente, Processo, Compromisso, Mensagem, StatusProcesso, TipoCompromisso, Perfil,
@@ -65,6 +66,12 @@ export default function AdminClienteDetalhe() {
   const [resposta, setResposta] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Troca de advogado responsável (somente admin)
+  const [advogados, setAdvogados] = useState<Perfil[]>([]);
+  const [trocandoAdvogado, setTrocandoAdvogado] = useState(false);
+  const [novoAdvogadoId, setNovoAdvogadoId] = useState('');
+  const [salvandoAdvogado, setSalvandoAdvogado] = useState(false);
+
   useEffect(() => {
     if (!id) return;
     carregar();
@@ -87,6 +94,11 @@ export default function AdminClienteDetalhe() {
     setProcessos(procs);
     setCompromissos(comps);
     setMensagens(msgs);
+    // Lista de advogados só é necessária para o admin (troca de responsável).
+    if (perfil?.papel === 'admin') {
+      const perfis = await db.listPerfis();
+      setAdvogados(perfis.filter((p) => p.papel === 'advogado'));
+    }
     setLoading(false);
   };
 
@@ -107,6 +119,37 @@ export default function AdminClienteDetalhe() {
       toast.erro('Erro ao salvar.');
     }
     setSalvando(false);
+  };
+
+  const advogadoAtual = advogados.find((a) => a.id === cliente?.advogado_id) || null;
+
+  const abrirTrocaAdvogado = () => {
+    setNovoAdvogadoId(cliente?.advogado_id ?? '');
+    setTrocandoAdvogado(true);
+  };
+
+  const trocarAdvogado = async () => {
+    if (!cliente) return;
+    const novoId = novoAdvogadoId || null;
+    if (novoId === (cliente.advogado_id ?? null)) {
+      setTrocandoAdvogado(false);
+      return;
+    }
+    setSalvandoAdvogado(true);
+    try {
+      // Atualiza o vínculo do cliente.
+      await db.updateCliente(cliente.id, { advogado_id: novoId });
+      // Reatribui os processos do cliente ao novo advogado para refletir a mudança de responsável.
+      await Promise.all(
+        processos.map((p) => db.updateProcesso(p.id, { advogado_id: novoId })),
+      );
+      toast.sucesso('Advogado responsável atualizado!');
+      setTrocandoAdvogado(false);
+      await carregar();
+    } catch {
+      toast.erro('Erro ao trocar o advogado responsável.');
+    }
+    setSalvandoAdvogado(false);
   };
 
   const criarProcesso = async (e: React.FormEvent) => {
@@ -177,29 +220,27 @@ export default function AdminClienteDetalhe() {
   const handleUploadFoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !cliente) return;
-    if (file.size > 2 * 1024 * 1024) { // 2MB
-      toast.erro('Imagem muito grande (máx. 2MB).');
+    if (file.size > 700 * 1024) { // 700KB
+      toast.erro('Imagem muito grande (máx. 700KB).');
       return;
     }
     setUploading(true);
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      try {
-        const base64 = reader.result as string;
-        await db.updateCliente(cliente.id, { foto_url: base64 });
-        toast.sucesso('Foto do cliente atualizada!');
-        await carregar();
-      } catch (err) {
-        toast.erro('Erro ao salvar a foto.');
-        console.error(err);
-      }
-      finally {
-        setUploading(false);
-        // Limpa o input para permitir o upload do mesmo arquivo novamente
-        if (fileInputRef.current) fileInputRef.current.value = '';
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      // Usa o Firebase Storage para arquivos grandes e data-URL para
+      // pequenos; salva apenas a URL (curta) no Firestore, respeitando o
+      // limite de ~1MB por campo.
+      const url = await uploadDocumento(`clientes/${cliente.id}`, file);
+      await db.updateCliente(cliente.id, { foto_url: url });
+      toast.sucesso('Foto do cliente atualizada!');
+      await carregar();
+    } catch (err) {
+      toast.erro('Erro ao salvar a foto.');
+      console.error(err);
+    } finally {
+      setUploading(false);
+      // Limpa o input para permitir o upload do mesmo arquivo novamente
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
   if (loading) {
     return <div className="p-8"><div className="w-8 h-8 border-4 border-brand-200 border-t-brand-700 rounded-full animate-spin mx-auto" /></div>;
@@ -346,7 +387,46 @@ export default function AdminClienteDetalhe() {
                   <div className="sm:col-span-2"><dt className="text-xs text-ink-400 uppercase tracking-wide">Observações</dt><dd className="text-sm text-ink-800 mt-0.5 whitespace-pre-wrap">{cliente.observacoes}</dd></div>
                 )}
                 <div><dt className="text-xs text-ink-400 uppercase tracking-wide">Cadastrado em</dt><dd className="text-sm text-ink-800 mt-0.5">{formatarData(cliente.criado_em)}</dd></div>
+                <div className="sm:col-span-2">
+                  <dt className="text-xs text-ink-400 uppercase tracking-wide">Advogado responsável</dt>
+                  <dd className="text-sm text-ink-800 mt-0.5 flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1.5">
+                      <Scale size={14} className="text-ink-400" />
+                      {advogadoAtual ? advogadoAtual.nome : 'Sem advogado vinculado'}
+                    </span>
+                    {perfil?.papel === 'admin' && !trocandoAdvogado && (
+                      <button onClick={abrirTrocaAdvogado} className="btn-ghost text-xs py-1 px-2">
+                        Trocar advogado
+                      </button>
+                    )}
+                  </dd>
+                </div>
               </dl>
+
+              {perfil?.papel === 'admin' && trocandoAdvogado && (
+                <div className="mt-5 pt-5 border-t border-ink-100 animate-fade-in">
+                  <label className="block text-sm font-medium text-ink-700 mb-1.5">Selecionar advogado responsável</label>
+                  <select
+                    value={novoAdvogadoId}
+                    onChange={(e) => setNovoAdvogadoId(e.target.value)}
+                    className="input-field"
+                  >
+                    <option value="">Sem advogado vinculado</option>
+                    {advogados.map((a) => (
+                      <option key={a.id} value={a.id}>{a.nome}</option>
+                    ))}
+                  </select>
+                  {advogados.length === 0 && (
+                    <p className="text-xs text-ink-400 mt-2">Nenhum advogado cadastrado. Cadastre em Advogados primeiro.</p>
+                  )}
+                  <div className="flex gap-3 justify-end pt-4">
+                    <button type="button" onClick={() => setTrocandoAdvogado(false)} className="btn-secondary">Cancelar</button>
+                    <button type="button" onClick={trocarAdvogado} disabled={salvandoAdvogado} className="btn-primary">
+                      {salvandoAdvogado ? 'Salvando…' : 'Salvar responsável'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

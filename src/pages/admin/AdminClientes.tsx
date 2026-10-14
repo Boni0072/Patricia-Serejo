@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import {
   Users, Plus, Search, Mail, Phone, MoreVertical, Pencil, Trash2, X, AlertCircle,
-  KeyRound, CheckCircle2, MailOpen, ChevronRight,
+  KeyRound, CheckCircle2, MailOpen, ChevronRight, Send,
 } from 'lucide-react';
 import * as db from '../../lib/db';
+import { uploadDocumento } from '../../lib/storage';
 import { criarContaCliente, reenviarAcessoCliente, codErroAuth } from '../../lib/authAdmin';
 import { useAuth } from '../../context/AuthContext';
 import type { Cliente, Processo } from '../../types/database';
@@ -16,7 +18,7 @@ interface ClienteComProcessos extends Cliente {
   processos?: Processo[];
 }
 
-type ModoModal = 'fechado' | 'novo' | 'editar' | 'acesso';
+type ModoModal = 'fechado' | 'novo' | 'editar' | 'acesso' | 'convite';
 
 export default function AdminClientes() {
   const { user, perfil } = useAuth();
@@ -27,14 +29,31 @@ export default function AdminClientes() {
   const [editando, setEditando] = useState<Cliente | null>(null);
   const [form, setForm] = useState({ nome: '', email: '', telefone: '', cpf: '', endereco: '', observacoes: '' });
   const [salvando, setSalvando] = useState(false);
-  const [fotoBase64, setFotoBase64] = useState<string | null>(null);
+  const [enviandoSenha, setEnviandoSenha] = useState(false);
+  const [fotoBase64, setFotoBase64] = useState<File | null>(null);
   const [menuId, setMenuId] = useState<string | null>(null);
+  const [convite, setConvite] = useState({ nome: '', email: '' });
+  const [enviandoConvite, setEnviandoConvite] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number; abrirParaCima: boolean } | null>(null);
 
   const podeGerenciar = perfil?.papel === 'admin' || perfil?.papel === 'advogado';
 
   useEffect(() => {
     carregar();
   }, []);
+
+  // Fecha o menu de ações ao rolar ou redimensionar (evita que o menu fixo fique "descolado" do botão)
+  useEffect(() => {
+    if (!menuId) return;
+    const fechar = () => fecharMenu();
+    window.addEventListener('scroll', fechar, true);
+    window.addEventListener('resize', fechar);
+    return () => {
+      window.removeEventListener('scroll', fechar, true);
+      window.removeEventListener('resize', fechar);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menuId]);
 
   const carregar = async () => {
     try {
@@ -58,6 +77,11 @@ export default function AdminClientes() {
     );
   });
 
+  const fecharMenu = () => {
+    setMenuId(null);
+    setMenuPos(null);
+  };
+
   const abrirNovo = () => {
     setEditando(null);
     setForm({ nome: '', email: '', telefone: '', cpf: '', endereco: '', observacoes: '' });
@@ -76,13 +100,13 @@ export default function AdminClientes() {
       observacoes: c.observacoes || '',
     });
     setModo('editar');
-    setMenuId(null);
+    fecharMenu();
   };
 
   const abrirAcesso = (c: Cliente) => {
     setEditando(c);
     setModo('acesso');
-    setMenuId(null);
+    fecharMenu();
   };
 
   const fecharModal = () => {
@@ -123,6 +147,8 @@ export default function AdminClientes() {
     e.preventDefault();
     setSalvando(true);
     try {
+      // Cria o cliente sem foto (a foto é adicionada em uma segunda etapa,
+      // respeitando o limite de ~1MB por campo do Firestore).
       const clienteId = await db.createCliente({
         nome: form.nome,
         email: form.email,
@@ -130,9 +156,14 @@ export default function AdminClientes() {
         cpf: form.cpf || null,
         endereco: form.endereco || null,
         observacoes: form.observacoes || null,
-        foto_url: fotoBase64,
         ...(perfil?.papel === 'advogado' ? { advogado_id: user?.uid ?? null } : {}),
       } as Cliente);
+
+      // Upload da foto (Storage para arquivos grandes, data-URL para pequenos).
+      if (fotoBase64) {
+        const fotoUrl = await uploadDocumento(`clientes/${clienteId}`, fotoBase64);
+        await db.updateCliente(clienteId, { foto_url: fotoUrl });
+      }
 
       let uid: string | null = null;
       try {
@@ -168,15 +199,11 @@ export default function AdminClientes() {
       setFotoBase64(null);
       return;
     }
-    if (file.size > 2 * 1024 * 1024) { // 2MB
-      toast.erro('Imagem muito grande (máx. 2MB).');
+    if (file.size > 700 * 1024) { // 700KB
+      toast.erro('Imagem muito grande (máx. 700KB).');
       return;
     }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setFotoBase64(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    setFotoBase64(file);
   };
 
   const criarAcessoExistente = async (e: React.FormEvent) => {
@@ -210,7 +237,7 @@ export default function AdminClientes() {
   };
 
   const reenviarAcesso = async (c: Cliente) => {
-    setMenuId(null);
+    fecharMenu();
     if (!confirm(`Reenviar e-mail de definição de senha para ${c.email}?`)) return;
     try {
       await reenviarAcessoCliente(c.email);
@@ -220,12 +247,116 @@ export default function AdminClientes() {
     }
   };
 
+  // Monta e abre o cliente de e-mail padrão com uma mensagem pronta convidando
+  // o destinatário a se cadastrar no portal do cliente.
+  const montarEEnviarConvite = (email: string, nome: string) => {
+    // Quando o remetente é um advogado, inclui o uid dele no link para que o
+    // cliente que se cadastrar por ele seja vinculado automaticamente a ele.
+    // O nome vai apenas para EXIBIÇÃO na tela de cadastro (campo não editável);
+    // o vínculo em si é feito só pelo uid (advogado_id). Nenhum e-mail/senha do
+    // advogado é trafegado. O admin não vincula automaticamente.
+    const params = perfil?.papel === 'advogado' && user?.uid
+      ? `?advogado=${encodeURIComponent(user.uid)}${perfil?.nome ? `&advogado_nome=${encodeURIComponent(perfil.nome)}` : ''}`
+      : '';
+    const linkCadastro = `${window.location.origin}/cadastro${params}`;
+    const assunto = 'Convite para acessar o Portal do Cliente';
+    const saudacao = nome.trim() ? `Olá, ${nome.trim()}!` : 'Olá!';
+    const corpo =
+      `${saudacao}\n\n` +
+      `Você foi convidado(a) a criar seu acesso ao Portal do Cliente do ` +
+      `Patricia Cristiane Serejo Advocacia. Por lá é possível acompanhar seus ` +
+      `processos, enviar documentos e conversar com o escritório com segurança.\n\n` +
+      `Para se cadastrar, acesse o link abaixo e crie sua senha:\n${linkCadastro}\n\n` +
+      `Atenciosamente,\nPatricia Cristiane Serejo Advocacia`;
+    const mailto = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`;
+
+    // Usa um elemento <a> temporário para acionar o cliente de e-mail padrão.
+    const a = document.createElement('a');
+    a.href = mailto;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    toast.sucesso('Mensagem pronta aberta no seu aplicativo de e-mail para ' + email);
+  };
+
+  // Ação do menu de contexto (⋯) de uma linha: envia para o cliente da linha.
+  const enviarConviteCadastro = (c: Cliente) => {
+    fecharMenu();
+    montarEEnviarConvite(c.email, c.nome);
+  };
+
+  // Ação do botão do topo: abre o modal para informar o destinatário.
+  const abrirConvite = () => {
+    setConvite({ nome: '', email: '' });
+    setModo('convite');
+  };
+
+  const enviarConviteDoModal = (e: React.FormEvent) => {
+    e.preventDefault();
+    const email = convite.email.trim();
+    if (!email) {
+      toast.erro('Informe o e-mail do destinatário.');
+      return;
+    }
+    setEnviandoConvite(true);
+    montarEEnviarConvite(email, convite.nome);
+    setEnviandoConvite(false);
+    setModo('fechado');
+  };
+
+
+
+  // Botão dentro de "Dados cadastrais": envia ao cliente a solicitação para criar/redefinir a senha.
+  // - Sem conta de acesso: cria a conta e envia o e-mail de definição de senha.
+  // - Com conta de acesso: reenvia o e-mail de definição de senha.
+  const solicitarCriacaoSenha = async () => {
+    if (!editando) return;
+    if (form.email.trim().toLowerCase() !== editando.email.trim().toLowerCase()) {
+      toast.erro('O e-mail foi alterado. Salve os dados antes de enviar a solicitação.');
+      return;
+    }
+    if (!confirm(`Enviar solicitação de criação de senha para ${editando.email}?`)) return;
+
+    setEnviandoSenha(true);
+    try {
+      if (editando.user_id) {
+        await reenviarAcessoCliente(editando.email);
+        toast.sucesso('Solicitação enviada para ' + editando.email);
+      } else {
+        const uid = await criarContaCliente({
+          nome: editando.nome,
+          email: editando.email,
+          telefone: editando.telefone || '',
+          cpf: editando.cpf || '',
+        });
+        await db.updateCliente(editando.id, { user_id: uid });
+        setEditando({ ...editando, user_id: uid });
+        toast.sucesso('Solicitação enviada para ' + editando.email);
+        carregar();
+      }
+    } catch (err) {
+      const cod = codErroAuth(err);
+      if (cod === 'email-em-uso') {
+        toast.erro('Este e-mail já possui conta de acesso. Tente reenviar a solicitação.');
+      } else if (cod === 'email-invalido') {
+        toast.erro('E-mail inválido.');
+      } else if (cod === 'operacao-bloqueada') {
+        toast.erro('Cadastro por e-mail/senha não habilitado no Firebase.');
+      } else {
+        toast.erro('Erro ao enviar a solicitação de senha.');
+      }
+    }
+    setEnviandoSenha(false);
+  };
+
   const excluir = async (c: Cliente) => {
+    fecharMenu();
     if (!confirm(`Excluir o cliente "${c.nome}"? Esta ação removerá também os processos vinculados.`)) return;
     try {
       await db.deleteCliente(c.id);
       toast.sucesso('Cliente excluído.');
-      setMenuId(null);
       carregar();
     } catch {
       toast.erro('Erro ao excluir cliente.');
@@ -248,9 +379,14 @@ export default function AdminClientes() {
           <h1 className="font-serif text-3xl text-brand-900">Clientes</h1>
           <p className="text-ink-500 mt-1">Gestão de clientes e acessos ao portal.</p>
         </div>
-        <button onClick={abrirNovo} className="btn-primary">
-          <Plus size={18} /> Novo cliente
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={abrirConvite} className="btn-secondary">
+            <Mail size={18} /> Enviar convite
+          </button>
+          <button onClick={abrirNovo} className="btn-primary">
+            <Plus size={18} /> Novo cliente
+          </button>
+        </div>
       </div>
 
       {/* Busca */}
@@ -331,53 +467,29 @@ export default function AdminClientes() {
                   <td className="px-4 py-3 hidden lg:table-cell text-sm text-ink-500">
                     {formatarData(c.criado_em)}
                   </td>
-                  <td className="px-4 py-3 relative">
+                  <td className="px-4 py-3">
                     <button
-                      onClick={() => setMenuId(menuId === c.id ? null : c.id)}
-                      className="p-1.5 rounded-lg hover:bg-ink-100 text-ink-500"
+                      onClick={(e) => {
+                        if (menuId === c.id) {
+                          fecharMenu();
+                          return;
+                        }
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const MENU_ALTURA = 216;
+                        const abrirParaCima = window.innerHeight - rect.bottom < MENU_ALTURA && rect.top > MENU_ALTURA;
+                        setMenuPos({
+                          top: abrirParaCima ? rect.top - MENU_ALTURA - 6 : rect.bottom + 6,
+                          left: rect.right - 192,
+                          abrirParaCima,
+                        });
+                        setMenuId(c.id);
+                      }}
+                      className={`p-1.5 rounded-lg text-ink-500 transition-colors ${menuId === c.id ? 'bg-brand-100 text-brand-700' : 'hover:bg-ink-100'}`}
+                      aria-haspopup="menu"
+                      aria-expanded={menuId === c.id}
                     >
                       <MoreVertical size={16} />
                     </button>
-                    {menuId === c.id && (
-                      <div className="absolute right-4 top-10 z-10 bg-white rounded-lg shadow-lg border border-ink-100 py-1 w-48 animate-scale-in">
-                        <Link
-                          to={`/admin/clientes/${c.id}`}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-brand-700 hover:bg-brand-50"
-                        >
-                          <ChevronRight size={14} /> Ver detalhes
-                        </Link>
-                        <button
-                          onClick={() => abrirEditar(c)}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-ink-700 hover:bg-brand-50"
-                        >
-                          <Pencil size={14} /> Editar dados
-                        </button>
-                        {!c.user_id && (
-                          <button
-                            onClick={() => abrirAcesso(c)}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-brand-700 hover:bg-brand-50"
-                          >
-                            <KeyRound size={14} /> Criar acesso
-                          </button>
-                        )}
-                        {c.user_id && (
-                          <button
-                            onClick={() => reenviarAcesso(c)}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-ink-700 hover:bg-brand-50"
-                          >
-                            <MailOpen size={14} /> Reenviar acesso
-                          </button>
-                        )}
-                        {perfil?.papel === 'admin' && (
-                        <button
-                          onClick={() => excluir(c)}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-danger-600 hover:bg-danger-50"
-                        >
-                          <Trash2 size={14} /> Excluir
-                        </button>
-                        )}
-                      </div>
-                    )}
                   </td>
                 </tr>
               ))}
@@ -385,6 +497,70 @@ export default function AdminClientes() {
           </table>
         </div>
       )}
+
+      {/* Menu de ações do cliente — renderizado via portal para não ser cortado pelo card */}
+      {menuId && menuPos && (() => {
+        const c = filtrados.find((x) => x.id === menuId);
+        if (!c) return null;
+        return createPortal(
+          <>
+            <div className="fixed inset-0 z-[95]" onClick={fecharMenu} onContextMenu={(e) => { e.preventDefault(); fecharMenu(); }} />
+            <div
+              role="menu"
+              className="fixed z-[100] w-48 bg-white rounded-xl shadow-xl border border-ink-100 py-1.5 animate-scale-in"
+              style={{ top: menuPos.top, left: menuPos.left }}
+            >
+              <Link
+                to={`/admin/clientes/${c.id}`}
+                onClick={fecharMenu}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-ink-700 hover:bg-brand-50 transition-colors"
+              >
+                <ChevronRight size={15} className="text-ink-400" /> Ver detalhes
+              </Link>
+              <button
+                onClick={() => abrirEditar(c)}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-ink-700 hover:bg-brand-50 transition-colors"
+              >
+                <Pencil size={15} className="text-ink-400" /> Editar dados
+              </button>
+              {!c.user_id && (
+                <button
+                  onClick={() => abrirAcesso(c)}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-ink-700 hover:bg-brand-50 transition-colors"
+                >
+                  <KeyRound size={15} className="text-ink-400" /> Criar acesso
+                </button>
+              )}
+              {c.user_id && (
+                <button
+                  onClick={() => reenviarAcesso(c)}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-ink-700 hover:bg-brand-50 transition-colors"
+                >
+                  <MailOpen size={15} className="text-ink-400" /> Reenviar acesso
+                </button>
+              )}
+              <button
+                onClick={() => enviarConviteCadastro(c)}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-ink-700 hover:bg-brand-50 transition-colors"
+              >
+                <Mail size={15} className="text-ink-400" /> Enviar link de cadastro
+              </button>
+              {perfil?.papel === 'admin' && (
+                <>
+                  <div className="my-1 h-px bg-ink-100" />
+                  <button
+                    onClick={() => excluir(c)}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-danger-600 hover:bg-danger-50 transition-colors"
+                  >
+                    <Trash2 size={15} /> Excluir
+                  </button>
+                </>
+              )}
+            </div>
+          </>,
+          document.body,
+        );
+      })()}
 
       {/* Modal Novo cliente — com envio automático de e-mail */}
       <Modal aberto={modo === 'novo'} onFechar={fecharModal} titulo="Novo cliente">
@@ -445,7 +621,7 @@ export default function AdminClientes() {
         </form>
       </Modal>
 
-      {/* Modal Editar */}
+      {/* Modal Editar — Dados cadastrais do cliente */}
       <Modal aberto={modo === 'editar'} onFechar={fecharModal} titulo="Editar cliente">
         <form onSubmit={salvarCliente} className="space-y-4">
           <div>
@@ -474,6 +650,33 @@ export default function AdminClientes() {
             <label className="block text-sm font-medium text-ink-700 mb-1.5">Observações</label>
             <textarea value={form.observacoes} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} className="input-field min-h-[80px] resize-y" />
           </div>
+
+          {/* Solicitação de criação de senha */}
+          <div className="bg-brand-50 border border-brand-100 rounded-lg p-4 flex gap-3">
+            <KeyRound size={20} className="text-brand-700 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-brand-900">Senha de acesso ao sistema</p>
+              <p className="text-xs text-ink-600 mt-1">
+                {editando?.user_id
+                  ? 'Este cliente já possui acesso. Você pode reenviar o e-mail para que ele defina uma nova senha.'
+                  : 'Este cliente ainda não possui acesso. Envie uma solicitação para que ele crie sua senha e acesse o portal.'}
+              </p>
+              <button
+                type="button"
+                onClick={solicitarCriacaoSenha}
+                disabled={enviandoSenha || salvando}
+                className="btn-secondary mt-3 inline-flex items-center gap-2"
+              >
+                <Send size={14} />
+                {enviandoSenha
+                  ? 'Enviando…'
+                  : editando?.user_id
+                    ? 'Reenviar solicitação de senha'
+                    : 'Enviar solicitação para criar senha'}
+              </button>
+            </div>
+          </div>
+
           <div className="flex gap-3 justify-end pt-2">
             <button type="button" onClick={fecharModal} className="btn-secondary">Cancelar</button>
             <button type="submit" disabled={salvando} className="btn-primary">
@@ -500,6 +703,65 @@ export default function AdminClientes() {
             <button type="button" onClick={fecharModal} className="btn-secondary">Cancelar</button>
             <button type="submit" disabled={salvando} className="btn-primary">
               {salvando ? 'Enviando…' : 'Criar acesso e enviar e-mail'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal Enviar convite de cadastro — monta e-mail com link para /cadastro */}
+      <Modal aberto={modo === 'convite'} onFechar={fecharModal} titulo="Enviar convite de cadastro">
+        <form onSubmit={enviarConviteDoModal} className="space-y-4">
+          <div className="bg-brand-50 border border-brand-100 rounded-lg p-4 flex gap-3">
+            <Mail size={20} className="text-brand-700 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm text-ink-700">
+                Vamos abrir seu aplicativo de e-mail com uma mensagem pronta convidando o
+                destinatário a criar o acesso ao Portal do Cliente. Você revisa e envia.
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-ink-700 mb-1.5">Nome do destinatário</label>
+            <input
+              list="convite-clientes"
+              value={convite.nome}
+              onChange={(e) => setConvite((v) => ({ ...v, nome: e.target.value }))}
+              className="input-field"
+              placeholder="Ex.: Maria Silva"
+            />
+            <datalist id="convite-clientes">
+              {clientes.map((c) => (
+                <option key={c.id} value={c.nome} />
+              ))}
+            </datalist>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-ink-700 mb-1.5">E-mail do destinatário *</label>
+            <input
+              type="email"
+              required
+              list="convite-emails"
+              value={convite.email}
+              onChange={(e) => setConvite((v) => ({ ...v, email: e.target.value }))}
+              className="input-field"
+              placeholder="cliente@email.com"
+            />
+            <datalist id="convite-emails">
+              {clientes.map((c) => (
+                <option key={c.id} value={c.email} />
+              ))}
+            </datalist>
+            <p className="text-xs text-ink-400 mt-1">
+              Dica: você pode digitar ou escolher um cliente já cadastrado na lista.
+            </p>
+          </div>
+
+          <div className="flex gap-3 justify-end pt-2">
+            <button type="button" onClick={fecharModal} className="btn-secondary">Cancelar</button>
+            <button type="submit" disabled={enviandoConvite} className="btn-primary">
+              {enviandoConvite ? 'Preparando…' : 'Preparar e-mail de convite'}
             </button>
           </div>
         </form>

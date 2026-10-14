@@ -94,7 +94,7 @@ export async function createPerfil(uid: string, p: Omit<Perfil, 'id' | 'criado_e
 
 export async function updatePerfil(
   uid: string,
-  dados: Partial<Pick<Perfil, 'nome' | 'telefone' | 'cpf'>>,
+  dados: Partial<Pick<Perfil, 'nome' | 'telefone' | 'cpf' | 'foto_url'>>,
 ): Promise<void> {
   await updateDoc(doc(db, 'perfis', uid), {
     ...dados,

@@ -1,23 +1,3 @@
-import {
-  ref,
-  uploadBytes,
-  getDownloadURL,
-  deleteObject,
-} from 'firebase/storage';
-import { storage } from './firebaseClient';
-
-/**
- * Upload HÍBRIDO de documentos (sem depender de CORS do Storage).
- *
- * - Arquivos pequenos (<= LIMITE_BASE64 = 700KB): converte para data-URL
- *   base64 e devolve `data:...;base64,...`. O chamador salva essa string
- *   no campo `url` do documento no Firestore — funciona 100% sem Storage.
- * - Arquivos grandes: faz upload normal ao Firebase Storage (requer CORS
- *   configurado no bucket — ver cors.json).
- *
- * Limite: documentos do Firestore têm no máximo 1 MiB; 700KB de arquivo
- * viram ~933KB em base64, cabendo com folga junto dos metadados.
- */
 export const LIMITE_BASE64_BYTES = 700 * 1024;
 
 export function arquivoParaDataURL(file: File): Promise<string> {
@@ -43,7 +23,7 @@ export function dataURLParaObjectURL(dataUrl: string): string {
   return URL.createObjectURL(new Blob([bytes], { type: mime }));
 }
 
-/** Baixa/abre um documento, seja data-URL base64 ou URL http(s) do Storage. */
+/** Baixa/abre um documento, seja data-URL base64 ou URL http(s). */
 export function baixarDataURL(dataUrl: string, nomeArquivo: string): void {
   const a = document.createElement('a');
   a.href = dataUrl;
@@ -72,29 +52,31 @@ export async function baixarDocumentoURL(url: string, nomeArquivo: string): Prom
   }
 }
 
+/**
+ * Upload de documentos/fotos para o Firestore como base-64 (sem Firebase Storage).
+ *
+ * - Arquivos <= LIMITE_BASE64_BYTES (700KB): converte para data-URL base64 e
+ *   devolve `data:...;base64,...`. O chamador salva essa string no campo
+ *   `foto_url` do Firestore — funciona 100% sem Storage, sem CORS.
+ * - Arquivos > LIMITE_BASE64_BYTES: rejeitados (Firestore tem ~1MB por campo;
+ *   700KB viram ~933KB em base64, cabendo com folga).
+ */
 export async function uploadDocumento(caminho: string, file: File): Promise<string> {
-  // Arquivo pequeno → base64 direto (sem Storage, sem CORS).
-  if (file.size <= LIMITE_BASE64_BYTES) {
-    return arquivoParaDataURL(file);
+  if (file.size > LIMITE_BASE64_BYTES) {
+    throw new Error('Imagem muito grande. Máx. 700KB.');
   }
-  // Arquivo grande → Storage (exige CORS configurado no bucket).
-  const storageRef = ref(storage, `documentos/${caminho}`);
-  await uploadBytes(storageRef, file);
-  return getDownloadURL(storageRef);
+  return arquivoParaDataURL(file);
 }
 
+/**
+ * Exclusão de arquivos.
+ *
+ * Devido ao armazenamento em base-64 no Firestore, não há arquivo no Storage
+ * para apagar. A exclusão dos metadados é feita via update/delete do documento.
+ */
 export async function deleteDocumentoArquivo(url: string): Promise<void> {
-  // Base64 vive dentro do doc do Firestore — some junto com ele.
   if (isDataURL(url)) return;
-  // Best-effort: tenta extrair o caminho do Storage a partir da URL de
-  // download (formato .../o/<caminho>?...) e apaga. Qualquer falha é ignorada.
-  try {
-    const m = /\/o\/([^?]+)/.exec(url);
-    const caminho = m ? decodeURIComponent(m[1]) : url;
-    await deleteObject(ref(storage, caminho));
-  } catch {
-    // URL pode ser inválida ou já removida — ignora silenciosamente
-  }
+  // Sem Storage, não há caminho de download para apagar. Ignora.
 }
 
 export function caminhoDocumentoUpload(escopo: string, processoId: string, extensao: string): string {

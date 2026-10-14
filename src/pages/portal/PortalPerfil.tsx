@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { User, Mail, Phone, Save, Shield, Upload } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import * as db from '../../lib/db';
+import { uploadDocumento } from '../../lib/storage';
 import { toast } from '../../components/Toast';
 import { formatarTelefone, formatarCPF } from '../../lib/utils';
 import type { Cliente } from '../../types/database';
@@ -54,27 +55,26 @@ export default function PortalPerfil() {
     if (!user || !perfil) return;
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { // 2MB
-      toast.erro('Imagem muito grande (máx. 2MB).');
+    if (file.size > 700 * 1024) { // 700KB
+      toast.erro('Imagem muito grande (máx. 700KB).');
       return;
     }
     setUploading(true);
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      try {
-        const base64 = reader.result as string;
-        await db.cliente.updatePerfil(user.uid, { foto_url: base64 });
-        await refreshPerfil();
-        toast.sucesso('Sua foto foi atualizada!');
-      } catch (err) {
-        toast.erro('Erro ao salvar a foto.');
-        console.error(err);
-      } finally {
-        setUploading(false);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      // Usa o Firebase Storage para arquivos grandes e data-URL para
+      // pequenos; salva apenas a URL (curta) no Firestore, respeitando o
+      // limite de ~1MB por campo.
+      const url = await uploadDocumento(`perfis/${user.uid}`, file);
+      await db.cliente.updatePerfil(user.uid, { foto_url: url });
+      await refreshPerfil();
+      toast.sucesso('Sua foto foi atualizada!');
+    } catch (err) {
+      toast.erro('Erro ao salvar a foto.');
+      console.error(err);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   if (loading) {

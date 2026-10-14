@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, User, Phone, ChevronLeft, AlertCircle, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Mail, Lock, User, Phone, ChevronLeft, AlertCircle, ArrowRight, ShieldCheck, UserCog, Scale } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from '../../components/Toast';
 import Logo from '../../components/Logo';
@@ -9,6 +9,14 @@ import { apenasDigitos } from '../../lib/utils';
 export default function CadastroPage() {
   const { signUp } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // Quando o cliente chega por um link de convite, o uid do advogado que
+  // enviou vem em ?advogado=<uid> e é usado para vincular o cadastro a ele.
+  // O nome (advogado_nome) é apenas para exibição em campo não editável —
+  // nenhum e-mail/senha do advogado é usado no cadastro.
+  const advogadoId = searchParams.get('advogado');
+  const advogadoNome = searchParams.get('advogado_nome');
+  console.log('[CadastroPage] advogado_id lido da URL:', advogadoId, '| query string completa:', window.location.search);
 
   const [form, setForm] = useState({
     nome: '',
@@ -52,6 +60,7 @@ export default function CadastroPage() {
       senha: form.senha,
       telefone: apenasDigitos(form.telefone),
       cpf: apenasDigitos(form.cpf),
+      advogado_id: advogadoId,
     });
     setLoading(false);
 
@@ -105,6 +114,16 @@ export default function CadastroPage() {
           <h2 className="font-serif text-3xl text-brand-900 mb-2">Criar conta</h2>
           <p className="text-ink-500 mb-8">Preencha seus dados para se cadastrar.</p>
 
+          {advogadoId && (
+            <div className="mb-6 flex items-start gap-3 bg-brand-50 border border-brand-100 text-brand-800 rounded-lg p-4 animate-fade-in">
+              <UserCog size={18} className="mt-0.5 shrink-0" />
+              <p className="text-sm">
+                Você recebeu um convite do escritório. Ao concluir o cadastro, sua conta
+                será vinculada automaticamente ao advogado que enviou este link.
+              </p>
+            </div>
+          )}
+
           {erro && (
             <div className="mb-6 flex items-start gap-3 bg-danger-50 border border-danger-100 text-danger-700 rounded-lg p-4 animate-fade-in">
               <AlertCircle size={18} className="mt-0.5 shrink-0" />
@@ -113,6 +132,21 @@ export default function CadastroPage() {
           )}
 
           <form onSubmit={submit} className="space-y-4">
+            {advogadoId && (
+              <div>
+                <label className="block text-sm font-medium text-ink-700 mb-1.5">Advogado responsável</label>
+                <div className="flex items-center gap-2 px-3 py-2.5 bg-brand-50 border border-brand-100 rounded-lg text-brand-900">
+                  <Scale size={16} className="shrink-0 text-brand-700" />
+                  <span className="text-sm font-medium">
+                    {advogadoNome || 'Advogado do escritório'}
+                  </span>
+                  <span className="ml-auto text-xs text-ink-400">(definido automaticamente)</span>
+                </div>
+                <p className="text-xs text-ink-400 mt-1">
+                  Seu cadastro será vinculado a este advogado. Não é possível alterar aqui.
+                </p>
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-ink-700 mb-1.5">Nome completo</label>
               <div className="relative">

@@ -25,6 +25,7 @@ export interface Perfil {
   cliente_id: string | null;
   telefone: string | null;
   cpf: string | null;
+  foto_url?: string | null;
   criado_em: string;
   atualizado_em: string;
 }
