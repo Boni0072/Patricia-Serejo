@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Calendar, Plus, Gavel, Users, Clock, Trash2, ChevronLeft, ChevronRight, View } from 'lucide-react';
+import { Calendar, Plus, Gavel, Users, Clock, Trash2, ChevronLeft, ChevronRight, View, Pencil } from 'lucide-react';
 import * as db from '../../lib/db';
 import { useAuth } from '../../context/AuthContext';
 import type { Compromisso, Processo } from '../../types/database';
@@ -26,6 +26,7 @@ export default function AdminAgenda() {
   const [processos, setProcessos] = useState<Processo[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalAberto, setModalAberto] = useState(false);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
   const [form, setForm] = useState({
     titulo: '', descricao: '', data_hora: '', tipo: 'audiencia' as TipoCompromisso, processo_id: '',
   });
@@ -57,10 +58,35 @@ export default function AdminAgenda() {
   };
 
   const abrirNovo = (dataHora?: Date) => {
-    const dataFormatada = dataHora
-      ? `${dataHora.getFullYear()}-${(dataHora.getMonth() + 1).toString().padStart(2, '0')}-${dataHora.getDate().toString().padStart(2, '0')}T${dataHora.getHours().toString().padStart(2, '0')}:${dataHora.getMinutes().toString().padStart(2, '0')}`
+    const data = dataHora instanceof Date ? dataHora : undefined;
+    const dataFormatada = data
+      ? `${data.getFullYear()}-${(data.getMonth() + 1).toString().padStart(2, '0')}-${data.getDate().toString().padStart(2, '0')}T${data.getHours().toString().padStart(2, '0')}:${data.getMinutes().toString().padStart(2, '0')}`
       : '';
+    setEditandoId(null);
     setForm({ titulo: '', descricao: '', data_hora: dataFormatada, tipo: 'audiencia', processo_id: '' });
+    setModalAberto(true);
+  };
+
+  const isoParaDatetimeLocal = (iso: string): string => {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const abrirEditar = (c: CompromissoComProcesso) => {
+    if (!podeGerenciar) {
+      toast.erro('Apenas advogados e administradores podem editar compromissos.');
+      return;
+    }
+    setEditandoId(c.id);
+    setForm({
+      titulo: c.titulo,
+      descricao: c.descricao || '',
+      data_hora: isoParaDatetimeLocal(c.data_hora),
+      tipo: c.tipo,
+      processo_id: c.processo_id || '',
+    });
     setModalAberto(true);
   };
 
@@ -68,26 +94,45 @@ export default function AdminAgenda() {
     e.preventDefault();
     setSalvando(true);
     try {
-      await db.createCompromisso({
-        titulo: form.titulo,
-        descricao: form.descricao || null,
-        data_hora: new Date(form.data_hora).toISOString(),
-        tipo: form.tipo,
-        processo_id: form.processo_id || null,
-        lembrete_enviado: false,
-      });
+      if (editandoId) {
+        await db.updateCompromisso(editandoId, {
+          titulo: form.titulo,
+          descricao: form.descricao || null,
+          data_hora: new Date(form.data_hora).toISOString(),
+          tipo: form.tipo,
+          processo_id: form.processo_id || null,
+        });
+      } else {
+        await db.createCompromisso({
+          titulo: form.titulo,
+          descricao: form.descricao || null,
+          data_hora: new Date(form.data_hora).toISOString(),
+          tipo: form.tipo,
+          processo_id: form.processo_id || null,
+          lembrete_enviado: false,
+        });
+      }
     } catch {
       setSalvando(false);
-      toast.erro('Erro ao agendar.');
+      toast.erro(editandoId ? 'Erro ao salvar alterações.' : 'Erro ao agendar.');
       return;
     }
     setSalvando(false);
-    toast.sucesso('Compromisso agendado!');
-    setModalAberto(false);
+    toast.sucesso(editandoId ? 'Compromisso atualizado!' : 'Compromisso agendado!');
+    fecharModal();
     carregar();
   };
 
+  const fecharModal = () => {
+    setModalAberto(false);
+    setEditandoId(null);
+  };
+
   const excluir = async (c: Compromisso) => {
+    if (!podeGerenciar) {
+      toast.erro('Apenas advogados e administradores podem excluir compromissos.');
+      return;
+    }
     if (!confirm('Excluir este compromisso?')) return;
     await db.deleteCompromisso(c.id);
     toast.sucesso('Compromisso excluído.');
@@ -127,11 +172,6 @@ export default function AdminAgenda() {
   const semana = getSemana(dataRef);
   const horas = Array.from({ length: 13 }, (_, i) => i + 7); // 7h às 19h
 
-  // --- Lógica Geral ---
-  const proximos = compromissos
-    .filter((c) => new Date(c.data_hora).getTime() > Date.now())
-    .slice(0, 6);
-
   const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
   const nomesMes = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
@@ -147,7 +187,7 @@ export default function AdminAgenda() {
           <p className="text-ink-500 mt-1">Audiências, reuniões e prazos.</p>
         </div>
         {podeGerenciar && (
-          <button onClick={abrirNovo} className="btn-primary">
+          <button onClick={() => abrirNovo()} className="btn-primary">
             <Plus size={18} /> Novo compromisso
           </button>
         )}
@@ -208,7 +248,22 @@ export default function AdminAgenda() {
                   <p className={`text-xs ${isHoje ? 'font-bold text-brand-800' : 'text-ink-500'}`}>{dia}</p>
                   {comps.slice(0, 2).map((c) => {
                     const Icone = iconesTipo[c.tipo];
-                    return <div key={c.id} className={`mt-1 px-1.5 py-0.5 rounded text-[10px] border ${coresTipo[c.tipo]} truncate`} title={c.titulo}><Icone size={8} className="inline mr-0.5" />{c.titulo}</div>;
+                    return (
+                      <div
+                        key={c.id}
+                        onClick={(e) => { e.stopPropagation(); abrirEditar(c); }}
+                        title={podeGerenciar ? `${c.titulo} — clique para editar` : c.titulo}
+                        className={`mt-1 px-1.5 py-0.5 rounded text-[10px] border ${coresTipo[c.tipo]} truncate group/chip relative ${podeGerenciar ? 'cursor-pointer hover:shadow' : ''}`}
+                      >
+                        <Icone size={8} className="inline mr-0.5" />{c.titulo}
+                        {podeGerenciar && (
+                          <span className="absolute top-0 right-0 hidden group-hover/chip:flex bg-white/80 rounded-full" onClick={(e) => e.stopPropagation()}>
+                            <button onClick={() => abrirEditar(c)} className="p-0.5" title="Editar"><Pencil size={10} className="text-ink-600" /></button>
+                            <button onClick={() => excluir(c)} className="p-0.5" title="Excluir"><Trash2 size={10} className="text-danger-600" /></button>
+                          </span>
+                        )}
+                      </div>
+                    );
                   })}
                   {comps.length > 2 && <p className="text-[10px] text-ink-400 mt-0.5">+{comps.length - 2} mais</p>}
                 </div>
@@ -246,10 +301,15 @@ export default function AdminAgenda() {
                       const top = ((dataComp.getHours() - 7) * 60 + dataComp.getMinutes()) / (13 * 60) * (13 * 64); // 64px = 16 * 4 (h-16)
                       const Icone = iconesTipo[c.tipo];
                       return (
-                        <div key={c.id} style={{ top: `${top}px`, left: '2px', right: '2px' }} className={`absolute p-1.5 rounded-lg border ${coresTipo[c.tipo]} z-10 group`}>
+                        <div key={c.id} onClick={() => abrirEditar(c)} title={podeGerenciar ? 'Clique para editar' : c.titulo} style={{ top: `${top}px`, left: '2px', right: '2px' }} className={`absolute p-1.5 rounded-lg border ${coresTipo[c.tipo]} group ${podeGerenciar ? 'cursor-pointer hover:shadow' : ''}`}>
                           <p className="text-[10px] font-bold truncate flex items-center gap-1"><Icone size={10} /> {c.titulo}</p>
                           <p className="text-[9px] truncate">{dataComp.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
-                          {podeGerenciar && <button onClick={() => excluir(c)} className="absolute top-0 right-0 p-0.5 bg-white/50 rounded-full opacity-0 group-hover:opacity-100"><Trash2 size={10} className="text-danger-600" /></button>}
+                          {podeGerenciar && (
+                            <span className="absolute top-0 right-0 flex bg-white/50 rounded-full opacity-0 group-hover:opacity-100" onClick={(e) => e.stopPropagation()}>
+                              <button onClick={() => abrirEditar(c)} className="p-0.5" title="Editar"><Pencil size={10} className="text-ink-600" /></button>
+                              <button onClick={() => excluir(c)} className="p-0.5" title="Excluir"><Trash2 size={10} className="text-danger-600" /></button>
+                            </span>
+                          )}
                         </div>
                       );
                     })}
@@ -261,7 +321,7 @@ export default function AdminAgenda() {
         )}
       </div>
 
-      <Modal aberto={modalAberto} onFechar={() => setModalAberto(false)} titulo="Novo compromisso">
+      <Modal aberto={modalAberto} onFechar={fecharModal} titulo={editandoId ? 'Editar compromisso' : 'Novo compromisso'}>
         <form onSubmit={salvar} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-ink-700 mb-1.5">Título *</label>
@@ -291,8 +351,8 @@ export default function AdminAgenda() {
             <textarea value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} className="input-field min-h-[80px] resize-y" />
           </div>
           <div className="flex gap-3 justify-end">
-            <button type="button" onClick={() => setModalAberto(false)} className="btn-secondary">Cancelar</button>
-            <button type="submit" disabled={salvando} className="btn-primary">{salvando ? 'Salvando…' : 'Agendar'}</button>
+            <button type="button" onClick={fecharModal} className="btn-secondary">Cancelar</button>
+            <button type="submit" disabled={salvando} className="btn-primary">{salvando ? 'Salvando…' : editandoId ? 'Salvar alterações' : 'Agendar'}</button>
           </div>
         </form>
       </Modal>

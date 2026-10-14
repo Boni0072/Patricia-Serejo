@@ -1,0 +1,38 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "compromissos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "data_hora", "order": "ASCENDING" },
+        { "fieldPath": "lembrete_enviado", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "notificacoes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "destinatario_id", "order": "ASCENDING" },
+        { "fieldPath": "criado_em", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "notificacoes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "destinatario_id", "order": "ASCENDING" },
+        { "fieldPath": "lida", "order": "ASCENDING" },
+        { "fieldPath": "criado_em", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "notificacoes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "criado_em", "order": "ASCENDING" },
+        { "fieldPath": "lida", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

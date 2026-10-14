@@ -66,6 +66,9 @@ export function NotificacaoProvider({ children }: { children: ReactNode }) {
   const [ativandoPush, setAtivandoPush] = useState(false);
   const intervaloRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cicloRef = useRef(0);
+  // Evita spam de "permission-denied" no console enquanto as regras
+  // do Firestore não são publicadas (avisa uma única vez).
+  const semPermissaoRef = useRef(false);
   const inicializadoRef = useRef(false);
   const notificacoesRef = useRef<Notificacao[]>([]);
   // Ids de notificações que já foram entregues via push pelo service worker.
@@ -107,7 +110,17 @@ export function NotificacaoProvider({ children }: { children: ReactNode }) {
       }
       inicializadoRef.current = true;
     } catch (e) {
-      console.error('NotificacaoProvider: erro ao carregar notificações:', e);
+      const codigo = (e as { code?: string })?.code;
+      if (codigo === 'permission-denied') {
+        if (!semPermissaoRef.current) {
+          semPermissaoRef.current = true;
+          console.warn(
+            'NotificacaoProvider: sem permissão no Firestore. Publique as regras com `npm run deploy:rules`.',
+          );
+        }
+      } else {
+        console.error('NotificacaoProvider: erro ao carregar notificações:', e);
+      }
     }
     setLoading(false);
   }, [user, alertarNovas]);
@@ -141,10 +154,15 @@ export function NotificacaoProvider({ children }: { children: ReactNode }) {
         //    Executa no primeiro ciclo e a cada hora (a cada 120 ciclos)
         cicloRef.current += 1;
         if (cicloRef.current % 120 === 0) {
-          void db.limparNotificoesAntigas(30).catch(() => {});
+          void db.limparNotificoesAntigas(30, user.uid).catch(() => {});
         }
       } catch (e) {
-        console.error('NotificacaoProvider: falha na verificação em segundo plano:', e);
+        const codigo = (e as { code?: string })?.code;
+        // permission-denied = regras ainda não publicadas: silencia o spam,
+        // o aviso único já foi emitido pelo `carregar()`. Tenta no próximo ciclo.
+        if (codigo !== 'permission-denied') {
+          console.error('NotificacaoProvider: falha na verificação em segundo plano:', e);
+        }
       }
     };
 

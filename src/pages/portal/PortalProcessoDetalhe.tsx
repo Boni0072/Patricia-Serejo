@@ -2,11 +2,12 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ChevronLeft, Scale, FileText, Upload, Download, Send, Clock,
-  Paperclip, AlertCircle, Calendar, MessageSquare,
+  Paperclip, AlertCircle, Calendar, MessageSquare, Eye,
 } from 'lucide-react';
 import * as db from '../../lib/db';
-import { uploadDocumento, caminhoDocumentoUpload } from '../../lib/storage';
+import { uploadDocumento, caminhoDocumentoUpload, baixarDocumentoURL } from '../../lib/storage';
 import { useAuth } from '../../context/AuthContext';
+import VisualizadorDocumento from '../../components/VisualizadorDocumento';
 import type {
   Processo, Movimentacao, Documento, Mensagem, Cliente,
 } from '../../types/database';
@@ -33,6 +34,7 @@ export default function PortalProcessoDetalhe() {
   const [novaMensagem, setNovaMensagem] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [docVisualizando, setDocVisualizando] = useState<Documento | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const mensagensEnd = useRef<HTMLDivElement>(null);
 
@@ -110,7 +112,7 @@ export default function PortalProcessoDetalhe() {
         nome_arquivo: file.name,
         url: publicUrl,
         tipo: 'outro',
-        enviado_por: user.uid,
+        enviado_por_id: user.uid,
       });
     } catch {
       setUploading(false);
@@ -123,18 +125,7 @@ export default function PortalProcessoDetalhe() {
   };
 
   const baixarDocumento = async (doc: Documento) => {
-    try {
-      const res = await fetch(doc.url);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = doc.nome_arquivo;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      window.open(doc.url, '_blank');
-    }
+    await baixarDocumentoURL(doc.url, doc.nome_arquivo);
   };
 
   if (loading) {
@@ -260,7 +251,12 @@ export default function PortalProcessoDetalhe() {
           ) : (
             <div className="space-y-2">
               {documentos.map((d) => (
-                <div key={d.id} className="card p-4 flex items-center justify-between hover:border-brand-200 transition-colors">
+                <div
+                  key={d.id}
+                  onClick={() => setDocVisualizando(d)}
+                  className="card p-4 flex items-center justify-between hover:border-brand-200 transition-colors cursor-pointer"
+                  title="Clique para ler o documento"
+                >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-10 h-10 rounded-lg bg-brand-100 flex items-center justify-center shrink-0">
                       <FileText size={18} className="text-brand-700" />
@@ -272,9 +268,14 @@ export default function PortalProcessoDetalhe() {
                       </p>
                     </div>
                   </div>
-                  <button onClick={() => baixarDocumento(d)} className="btn-ghost text-sm">
-                    <Download size={16} /> Baixar
-                  </button>
+                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <button onClick={() => setDocVisualizando(d)} className="btn-ghost text-sm" title="Ler documento">
+                      <Eye size={16} /> Ler
+                    </button>
+                    <button onClick={() => baixarDocumento(d)} className="btn-ghost text-sm" title="Baixar arquivo">
+                      <Download size={16} /> Baixar
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -335,6 +336,9 @@ export default function PortalProcessoDetalhe() {
           </p>
         </div>
       )}
+
+      {/* Leitor de documentos (clique abre para leitura) */}
+      <VisualizadorDocumento doc={docVisualizando} onClose={() => setDocVisualizando(null)} />
     </div>
   );
 }

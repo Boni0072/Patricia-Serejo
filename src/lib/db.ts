@@ -25,6 +25,7 @@ import {
   type QueryConstraint,
 } from 'firebase/firestore';
 import { db } from './firebaseClient';
+import { auth } from './firebaseClient';
 import { formatarDataHora } from './utils';
 import type {
   Perfil, Cliente, Processo, Movimentacao, Documento, Mensagem,
@@ -246,12 +247,20 @@ export async function listCompromissosByProcesso(processoId: string): Promise<Co
 }
 
 export async function listProximosCompromissos(maxCount = 5): Promise<Compromisso[]> {
-  const agora = Timestamp.now();
-  return list<Compromisso>('compromissos', [
-    where('data_hora', '>=', agora),
-    orderBy('data_hora', 'asc'),
-    limit(maxCount),
-  ]);
+  // Sem where/orderBy no servidor: evita qualquer índice composto.
+  // Filtra e ordena em memória (índice simples automático basta).
+  const agoraMs = Date.now();
+  const arr = await list<Compromisso>('compromissos', [limit(200)]);
+  return arr
+    .filter((c) => {
+      try {
+        return new Date(c.data_hora).getTime() >= agoraMs;
+      } catch {
+        return false;
+      }
+    })
+    .sort((a, b) => new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime())
+    .slice(0, maxCount);
 }
 
 export async function createCompromisso(c: Omit<Compromisso, 'id' | 'criado_em'>): Promise<string> {
@@ -272,7 +281,15 @@ export async function deleteCompromisso(id: string): Promise<void> {
 }
 
 export async function updateCompromisso(id: string, dados: Partial<Compromisso>): Promise<void> {
-  await updateDoc(doc(db, 'compromissos', id), dados);
+  const payload: Record<string, unknown> = { ...dados };
+  // Mantém data_hora como Timestamp (mesmo formato do createCompromisso)
+  // para não quebrar ordenação/filtros.
+  if (typeof payload.data_hora === 'string') {
+    const d = new Date(payload.data_hora as string);
+    if (isNaN(d.getTime())) throw new Error('Data inválida');
+    payload.data_hora = Timestamp.fromDate(d);
+  }
+  await updateDoc(doc(db, 'compromissos', id), payload);
 }
 
 /* ============================================================
@@ -373,23 +390,31 @@ export async function createNotificacao(
 }
 
 export async function listNotificoes(destinatarioId: string): Promise<Notificacao[]> {
-  return list<Notificacao>('notificacoes', [
+  // Sem orderBy no servidor: evita exigir índice composto
+  // (destinatario_id + criado_em). Ordena em memória.
+  const arr = await list<Notificacao>('notificacoes', [
     where('destinatario_id', '==', destinatarioId),
-    orderBy('criado_em', 'desc'),
-    limit(100),
+    limit(200),
   ]);
+  return arr
+    .sort((a, b) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime())
+    .slice(0, 100);
 }
 
 export async function listNotificoesNaoLidas(
   destinatarioId: string,
   maxCount = 50,
 ): Promise<Notificacao[]> {
-  return list<Notificacao>('notificacoes', [
+  // Um único filtro de igualdade (sem orderBy): usa apenas índice simples
+  // automático. Filtro de `lida` + ordenação feitos em memória.
+  const arr = await list<Notificacao>('notificacoes', [
     where('destinatario_id', '==', destinatarioId),
-    where('lida', '==', false),
-    orderBy('criado_em', 'desc'),
-    limit(maxCount),
+    limit(500),
   ]);
+  return arr
+    .filter((n) => !n.lida)
+    .sort((a, b) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime())
+    .slice(0, maxCount);
 }
 
 export async function listNotificoesNaoLidasVisiveis(
@@ -419,19 +444,31 @@ export async function deleteNotificacao(id: string): Promise<void> {
 }
 
 /** Remove notificações lidas mais antigas que `dias` dias (limpeza em segundo plano). */
-export async function limparNotificoesAntigas(dias = 30): Promise<number> {
-  const corte = new Date();
-  corte.setDate(corte.getDate() - dias);
-  const snap = await getDocs(
-    query(
-      collection(db, 'notificacoes'),
-      where('criado_em', '<=', Timestamp.fromDate(corte)),
-      where('lida', '==', true),
-      limit(500),
-    ),
-  );
-    await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
-  return snap.size;
+export async function limparNotificoesAntigas(dias = 30, destinatarioId?: string): Promise<number> {
+  const corteMs = new Date();
+  corteMs.setDate(corteMs.getDate() - dias);
+  const corte = corteMs.getTime();
+  // Escopada por usuário quando `destinatarioId` é informado: respeita a
+  // regra `destinatario_id == uid` e usa apenas índice simples automático.
+  // Todo o recorte por data + `lida` é feito em memória (sem índice composto).
+  const constraints = destinatarioId
+    ? [where('destinatario_id', '==', destinatarioId), limit(500)]
+    : [limit(200)];
+  const snap = await getDocs(query(collection(db, 'notificacoes'), ...constraints));
+  const antigasLidas = snap.docs.filter((d) => {
+    const data = d.data();
+    if (data.lida !== true) return false;
+    try {
+      const criado = data.criado_em instanceof Timestamp
+        ? data.criado_em.toDate().getTime()
+        : new Date(data.criado_em).getTime();
+      return criado <= corte;
+    } catch {
+      return false;
+    }
+  });
+    await Promise.all(antigasLidas.map((d) => deleteDoc(d.ref)));
+  return antigasLidas.length;
 }
 
 /* -------------------------------------------------------------
@@ -556,19 +593,29 @@ export async function verificarLembretesCompromissos(): Promise<number> {
   const agora = Date.now();
   const limite = new Date(agora + LIMITE_LEMBRETE_HORAS * 3600 * 1000);
 
-  const arr = await list<Compromisso>('compromissos', [
-    where('data_hora', '>=', Timestamp.fromDate(new Date(agora))),
-    where('data_hora', '<=', Timestamp.fromDate(limite)),
-    where('lembrete_enviado', '==', false),
-    orderBy('data_hora', 'asc'),
-    limit(50),
-  ]);
+  // SEM filtros/orderBy no servidor: evita QUALQUER índice composto.
+  // (Um `where` + `orderBy` antigo exigia índice lembrete_enviado+data_hora.)
+  // Todo o recorte é feito em memória com índice simples automático.
+  const arr = await list<Compromisso>('compromissos', [limit(200)]);
+
+  const pendentes = arr
+    .filter((c) => !c.lembrete_enviado)
+    .filter((c) => {
+      try {
+        const t = new Date(c.data_hora).getTime();
+        return t >= agora && t <= limite.getTime();
+      } catch {
+        return false;
+      }
+    })
+    .sort((a, b) => new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime())
+    .slice(0, 50);
 
   let count = 0;
-  for (const c of arr) {
+  for (const c of pendentes) {
     try {
       await criarNotificacaoLembrete(c);
-      await updateCompromisso(c.id, { lembrete_enviado: true });
+      await updateCompromissoInterno(c.id, { lembrete_enviado: true });
       count++;
     } catch {
       // Ignora erros individuais sem interromper o loop

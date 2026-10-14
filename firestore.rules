@@ -85,12 +85,12 @@ service cloud.firestore {
       allow create: if isSignedIn();
     }
 
-    // notificacoes — o próprio usuário lê/as atualiza; admin gerencia
+    // notificacoes — o próprio usuário lê as suas; admin lê/gerencia todas
     match /notificacoes/{id} {
-      allow read: if isSignedIn() && resource.data.destinatario_id == uid();
+      allow read: if isSignedIn() && (resource.data.destinatario_id == uid() || isAdmin());
       allow create: if isSignedIn();
       allow update: if isSignedIn() && (resource.data.destinatario_id == uid() || isAdmin());
-      allow delete: if isAdmin();
+      allow delete: if isSignedIn() && (resource.data.destinatario_id == uid() || isAdmin());
     }
 
     // push_tokens — o usuário gerencia os próprios tokens de push

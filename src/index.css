@@ -5,33 +5,33 @@
 @tailwind utilities;
 
 :root {
-  --primary: #5B0D22;
-  --primary-dark: #410817;
-  --primary-light: #8E1E3F;
+  --primary: #0F1F3D;
+  --primary-dark: #0A1730;
+  --primary-light: #1B3055;
 
-  --cherry: #8E1E3F;
-  --cherry-light: #B7435A;
-  --cherry-soft: #C98A98;
-  --burgundy: #5B0D22;
+  --cherry: #1B3055;
+  --cherry-light: #2A4270;
+  --cherry-soft: #8A9DBE;
+  --burgundy: #0F1F3D;
 
-  --cream: #F5EDE3;
-  --cream-light: #FAF6F2;
-  --cream-dark: #EDE0D2;
+  --cream: #F7F5F0;
+  --cream-light: #FDFCF9;
+  --cream-dark: #E9E6DD;
 
-  --gold: #D4B06A;
-  --gold-light: #E4C98F;
-  --gold-dark: #B9914C;
+  --gold: #B8975A;
+  --gold-light: #D9C494;
+  --gold-dark: #A17F49;
 
-  --text-primary: #35131E;
-  --text-secondary: #6F5A5F;
-  --text-light: #FAF6F2;
+  --text-primary: #2B2F36;
+  --text-secondary: #565A62;
+  --text-light: #F7F5F0;
 
-  --brown: #8C7B6B;
-  --border: #E2D3C5;
+  --brown: #7B7F87;
+  --border: #D8D5CC;
   --white: #FFFFFF;
 
-  --shadow-soft: 0 10px 30px rgba(91, 13, 34, 0.08);
-  --shadow-medium: 0 15px 40px rgba(91, 13, 34, 0.14);
+  --shadow-soft: 0 10px 30px rgba(15, 31, 61, 0.08);
+  --shadow-medium: 0 15px 40px rgba(15, 31, 61, 0.14);
 }
 
 @layer base {
@@ -92,7 +92,7 @@
   select:focus {
     border-color: var(--gold);
     outline: none;
-    box-shadow: 0 0 0 3px rgba(212, 176, 106, 0.15);
+    box-shadow: 0 0 0 3px rgba(184, 151, 90, 0.18);
   }
 
   .section-light {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Mail, Phone, MoreVertical, MailOpen, AlertCircle, Scale, UserCheck, Trash2 } from 'lucide-react';
+import { Plus, Mail, Phone, MoreVertical, MailOpen, AlertCircle, Scale, UserCheck, Trash2, Pencil } from 'lucide-react';
 import * as db from '../../lib/db';
 import { criarContaAdvogado, reenviarAcessoAdvogado, codErroAuth, deleteUser } from '../../lib/authAdmin';
 import { useAuth } from '../../context/AuthContext';
@@ -8,14 +8,15 @@ import { formatarData, formatarTelefone } from '../../lib/utils';
 import { toast } from '../../components/Toast';
 import Modal from '../../components/Modal';
 
-type ModoModal = 'fechado' | 'novo';
+type ModoModal = 'fechado' | 'novo' | 'editar';
 
 export default function AdminAdvogados() {
   const { perfil } = useAuth();
   const [advogados, setAdvogados] = useState<Perfil[]>([]);
   const [loading, setLoading] = useState(true);
   const [modo, setModo] = useState<ModoModal>('fechado');
-  const [form, setForm] = useState({ nome: '', email: '', telefone: '' });
+  const [form, setForm] = useState({ nome: '', email: '', telefone: '', cpf: '' });
+  const [editando, setEditando] = useState<Perfil | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [menuId, setMenuId] = useState<string | null>(null);
 
@@ -32,8 +33,16 @@ export default function AdminAdvogados() {
   };
 
   const abrirNovo = () => {
-    setForm({ nome: '', email: '', telefone: '' });
+    setEditando(null);
+    setForm({ nome: '', email: '', telefone: '', cpf: '' });
     setModo('novo');
+  };
+
+  const abrirEditar = (a: Perfil) => {
+    setMenuId(null);
+    setEditando(a);
+    setForm({ nome: a.nome, email: a.email, telefone: a.telefone ?? '', cpf: a.cpf ?? '' });
+    setModo('editar');
   };
 
   const fecharModal = () => {
@@ -43,6 +52,25 @@ export default function AdminAdvogados() {
   const salvar = async (e: React.FormEvent) => {
     e.preventDefault();
     setSalvando(true);
+    // Edição: atualiza nome, telefone e CPF do perfil (e-mail não muda —
+    // trocar e-mail exige alterar também o usuário no Firebase Auth).
+    if (modo === 'editar' && editando) {
+      try {
+        await db.updatePerfil(editando.id, {
+          nome: form.nome,
+          telefone: form.telefone || null,
+          cpf: form.cpf || null,
+        });
+        toast.sucesso('Advogado atualizado!');
+        setModo('fechado');
+        setEditando(null);
+        carregar();
+      } catch {
+        toast.erro('Erro ao atualizar advogado.');
+      }
+      setSalvando(false);
+      return;
+    }
     try {
       await criarContaAdvogado({
         nome: form.nome,
@@ -135,6 +163,12 @@ export default function AdminAdvogados() {
                   {menuId === a.id && (
                     <div className="absolute right-0 top-9 z-10 bg-white rounded-lg shadow-lg border border-ink-100 py-1 w-48 animate-scale-in">
                       <button
+                        onClick={() => abrirEditar(a)}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-ink-700 hover:bg-brand-50"
+                      >
+                        <Pencil size={14} /> Editar
+                      </button>
+                      <button
                         onClick={() => reenviar(a)}
                         className="w-full flex items-center gap-2 px-3 py-2 text-sm text-ink-700 hover:bg-brand-50"
                       >
@@ -170,8 +204,8 @@ export default function AdminAdvogados() {
         </div>
       )}
 
-      {/* Modal Novo advogado */}
-      <Modal aberto={modo === 'novo'} onFechar={fecharModal} titulo="Novo advogado">
+      {/* Modal Novo / Editar advogado */}
+      <Modal aberto={modo !== 'fechado'} onFechar={fecharModal} titulo={modo === 'editar' ? 'Editar advogado' : 'Novo advogado'}>
         <form onSubmit={salvar} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-ink-700 mb-1.5">Nome completo *</label>
@@ -179,28 +213,48 @@ export default function AdminAdvogados() {
           </div>
           <div>
             <label className="block text-sm font-medium text-ink-700 mb-1.5">E-mail *</label>
-            <input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input-field" placeholder="advogado@escritorio.com" />
+            <input
+              required
+              type="email"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              className="input-field"
+              placeholder="advogado@escritorio.com"
+              disabled={modo === 'editar'}
+              title={modo === 'editar' ? 'O e-mail de acesso não pode ser alterado' : undefined}
+            />
+            {modo === 'editar' && (
+              <p className="text-xs text-ink-400 mt-1">O e-mail de acesso não pode ser alterado.</p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-ink-700 mb-1.5">Telefone</label>
             <input value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} className="input-field" placeholder="(00) 00000-0000" />
           </div>
-
-          <div className="bg-brand-50 border border-brand-100 rounded-lg p-4 flex gap-3">
-            <MailOpen size={20} className="text-brand-700 shrink-0 mt-0.5" />
+          {modo === 'editar' && (
             <div>
-              <p className="text-sm font-medium text-brand-900">Acesso ao painel administrativo</p>
-              <p className="text-xs text-ink-600 mt-1">
-                O advogado receberá um e-mail em <strong>{form.email || '—'}</strong> com
-                um link para definir sua própria senha e acessar a área do advogado.
-              </p>
+              <label className="block text-sm font-medium text-ink-700 mb-1.5">CPF</label>
+              <input value={form.cpf} onChange={(e) => setForm({ ...form, cpf: e.target.value })} className="input-field" placeholder="000.000.000-00" />
             </div>
-          </div>
+          )}
+
+          {modo === 'novo' && (
+            <div className="bg-brand-50 border border-brand-100 rounded-lg p-4 flex gap-3">
+              <MailOpen size={20} className="text-brand-700 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-brand-900">Acesso ao painel administrativo</p>
+                <p className="text-xs text-ink-600 mt-1">
+                  O advogado receberá um e-mail em <strong>{form.email || '—'}</strong> com
+                  um link para definir sua própria senha e acessar a área do advogado.
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-3 justify-end pt-2">
             <button type="button" onClick={fecharModal} className="btn-secondary">Cancelar</button>
             <button type="submit" disabled={salvando} className="btn-primary">
-              {salvando ? 'Cadastrando…' : 'Cadastrar e enviar acesso'}
+              {salvando ? (modo === 'editar' ? 'Salvando…' : 'Cadastrando…') : (modo === 'editar' ? 'Salvar alterações' : 'Cadastrar e enviar acesso')}
             </button>
           </div>
         </form>

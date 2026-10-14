@@ -2,10 +2,10 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   ChevronLeft, Scale, FileText, Upload, Download, Send, Clock,
-  MessageSquare, Plus, Trash2, AlertCircle, User, Calendar,
+  MessageSquare, Plus, Trash2, AlertCircle, User, Calendar, Eye,
 } from 'lucide-react';
 import * as db from '../../lib/db';
-import { uploadDocumento, caminhoDocumentoUpload, deleteDocumentoArquivo } from '../../lib/storage';
+import { uploadDocumento, caminhoDocumentoUpload, deleteDocumentoArquivo, baixarDocumentoURL } from '../../lib/storage';
 import { useAuth } from '../../context/AuthContext';
 import type {
   Processo, Movimentacao, Documento, Mensagem, Cliente, Compromisso,
@@ -18,6 +18,7 @@ import {
 import { formatarDataHora, formatarData, tempoRelativo } from '../../lib/utils';
 import { toast } from '../../components/Toast';
 import Modal from '../../components/Modal';
+import VisualizadorDocumento from '../../components/VisualizadorDocumento';
 
 type Aba = 'timeline' | 'documentos' | 'mensagens' | 'compromissos';
 
@@ -40,6 +41,7 @@ export default function AdminProcessoDetalhe() {
   const [novoComp, setNovoComp] = useState({
     titulo: '', descricao: '', data_hora: '', tipo: 'audiencia' as TipoCompromisso,
   });
+  const [docVisualizando, setDocVisualizando] = useState<Documento | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const podeGerenciar = perfil?.papel === 'admin' || perfil?.papel === 'advogado';
 
@@ -149,7 +151,7 @@ export default function AdminProcessoDetalhe() {
     try {
       await db.createDocumento({
         processo_id: id,
-        nome: file.name,
+        nome_arquivo: file.name,
         url: publicUrl,
         tipo: 'outro',
         enviado_por_id: user.uid,
@@ -171,7 +173,7 @@ export default function AdminProcessoDetalhe() {
   };
 
   const baixarDocumento = (d: Documento) => {
-    window.open(d.url, '_blank');
+    void baixarDocumentoURL(d.url, d.nome_arquivo);
   };
 
   const adicionarCompromisso = async (e: React.FormEvent) => {
@@ -349,7 +351,12 @@ export default function AdminProcessoDetalhe() {
           ) : (
             <div className="space-y-2">
               {documentos.map((d) => (
-                <div key={d.id} className="card p-4 flex items-center justify-between hover:border-brand-200 transition-colors group">
+                <div
+                  key={d.id}
+                  onClick={() => setDocVisualizando(d)}
+                  className="card p-4 flex items-center justify-between hover:border-brand-200 transition-colors group cursor-pointer"
+                  title="Clique para ler o documento"
+                >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-10 h-10 rounded-lg bg-brand-100 flex items-center justify-center shrink-0">
                       <FileText size={18} className="text-brand-700" />
@@ -359,8 +366,11 @@ export default function AdminProcessoDetalhe() {
                       <p className="text-xs text-ink-400">{TIPO_DOCUMENTO_LABEL[d.tipo]} · {formatarData(d.criado_em)}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => baixarDocumento(d)} className="btn-ghost text-sm">
+                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <button onClick={() => setDocVisualizando(d)} className="btn-ghost text-sm" title="Ler documento">
+                      <Eye size={16} /> Ler
+                    </button>
+                    <button onClick={() => baixarDocumento(d)} className="btn-ghost text-sm" title="Baixar arquivo">
                       <Download size={16} />
                     </button>
                     {podeGerenciar && (
@@ -515,6 +525,9 @@ export default function AdminProcessoDetalhe() {
           </div>
         </form>
       </Modal>
+
+      {/* Leitor de documentos (clique abre para leitura) */}
+      <VisualizadorDocumento doc={docVisualizando} onClose={() => setDocVisualizando(null)} />
     </div>
   );
 }

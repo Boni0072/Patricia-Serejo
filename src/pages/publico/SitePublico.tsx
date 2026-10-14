@@ -40,6 +40,8 @@ function FloralAccent({
   opacity?: number;
   flip?: boolean;
 }) {
+  const SHOW_FLORES = false;
+  if (!SHOW_FLORES) return null;
   return (
     <svg
       viewBox="0 0 220 220"
@@ -222,6 +224,8 @@ function BackgroundFlower({
   opacity?: number;
   scale?: number;
 }) {
+  const SHOW_FLORES = false;
+  if (!SHOW_FLORES) return null;
   return (
     <svg
       viewBox="0 0 100 100"
@@ -333,9 +337,9 @@ export default function SitePublico() {
           scrolled ? 'backdrop-blur-md shadow-lg' : ''
         }`}
         style={{
-          backgroundColor: 'rgba(91, 13, 34, 0.97)',
+          backgroundColor: 'rgba(15, 31, 61, 0.97)',
           borderBottom:
-            '1px solid rgba(212, 176, 106, 0.55)',
+            '1px solid rgba(184, 151, 90, 0.55)',
         }}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -418,7 +422,7 @@ export default function SitePublico() {
             style={{
               backgroundColor: 'var(--primary-dark)',
               borderTop:
-                '1px solid rgba(212, 176, 106, 0.35)',
+                '1px solid rgba(184, 151, 90, 0.35)',
             }}
           >
             <nav className="flex flex-col px-4 py-4 gap-2">
@@ -559,7 +563,7 @@ export default function SitePublico() {
             className="absolute -bottom-40 left-10 w-[700px] h-[550px] rounded-full"
             style={{
               background:
-                'radial-gradient(circle, rgba(212,176,106,0.13) 0%, transparent 70%)',
+                'radial-gradient(circle, rgba(184, 151, 90,0.13) 0%, transparent 70%)',
             }}
           />
 
@@ -582,9 +586,9 @@ export default function SitePublico() {
                 className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-5 animate-fade-in"
                 style={{
                   backgroundColor:
-                    'rgba(91,13,34,0.07)',
+                    'rgba(15, 31, 61,0.07)',
                   border:
-                    '1px solid rgba(212,176,106,0.55)',
+                    '1px solid rgba(184, 151, 90,0.55)',
                 }}
               >
 
@@ -712,7 +716,7 @@ export default function SitePublico() {
                   backgroundColor:
                     'var(--cream-light)',
                   border:
-                    '1px solid rgba(212,176,106,0.45)',
+                    '1px solid rgba(184, 151, 90,0.45)',
                 }}
               >
 
@@ -730,7 +734,7 @@ export default function SitePublico() {
                   className="absolute inset-0"
                   style={{
                     background:
-                      'linear-gradient(135deg, rgba(91,13,34,0.10), rgba(245,237,227,0.15))',
+                      'linear-gradient(135deg, rgba(15, 31, 61,0.10), rgba(247, 245, 240,0.15))',
                   }}
                 />
 
@@ -881,7 +885,7 @@ export default function SitePublico() {
                     border:
                       '1px solid var(--border)',
                     boxShadow:
-                      '0 10px 30px rgba(91,13,34,0.06)',
+                      '0 10px 30px rgba(15, 31, 61,0.06)',
                     animationDelay:
                       `${idx * 0.05}s`,
                   }}
@@ -890,14 +894,14 @@ export default function SitePublico() {
                       'var(--gold)';
 
                     e.currentTarget.style.boxShadow =
-                      '0 18px 45px rgba(91,13,34,0.12)';
+                      '0 18px 45px rgba(15, 31, 61,0.12)';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.borderColor =
                       'var(--border)';
 
                     e.currentTarget.style.boxShadow =
-                      '0 10px 30px rgba(91,13,34,0.06)';
+                      '0 10px 30px rgba(15, 31, 61,0.06)';
                   }}
                 >
 
@@ -905,7 +909,7 @@ export default function SitePublico() {
                     className="w-12 h-12 rounded-xl flex items-center justify-center mb-5 transition-all duration-300"
                     style={{
                       backgroundColor:
-                        'rgba(91,13,34,0.07)',
+                        'rgba(15, 31, 61,0.07)',
                     }}
                   >
 
@@ -988,7 +992,7 @@ export default function SitePublico() {
                 className="aspect-[4/5] rounded-[2rem] overflow-hidden shadow-xl"
                 style={{
                   border:
-                    '1px solid rgba(212,176,106,0.45)',
+                    '1px solid rgba(184, 151, 90,0.45)',
                 }}
               >
 
@@ -1226,7 +1230,7 @@ export default function SitePublico() {
                     border:
                       '1px solid var(--border)',
                     boxShadow:
-                      '0 10px 30px rgba(91,13,34,0.06)',
+                      '0 10px 30px rgba(15, 31, 61,0.06)',
                   }}
                 >
 
@@ -1396,7 +1400,7 @@ export default function SitePublico() {
                         backgroundColor:
                           'rgba(255,255,255,0.08)',
                         border:
-                          '1px solid rgba(212,176,106,0.25)',
+                          '1px solid rgba(184, 151, 90,0.25)',
                       }}
                     >
                       <Phone
@@ -1448,7 +1452,7 @@ export default function SitePublico() {
                         backgroundColor:
                           'rgba(255,255,255,0.08)',
                         border:
-                          '1px solid rgba(212,176,106,0.25)',
+                          '1px solid rgba(184, 151, 90,0.25)',
                       }}
                     >
                       <Mail
@@ -1500,7 +1504,7 @@ export default function SitePublico() {
                         backgroundColor:
                           'rgba(255,255,255,0.08)',
                         border:
-                          '1px solid rgba(212,176,106,0.25)',
+                          '1px solid rgba(184, 151, 90,0.25)',
                       }}
                     >
                       <MapPin
@@ -1552,7 +1556,7 @@ export default function SitePublico() {
                         backgroundColor:
                           'rgba(255,255,255,0.08)',
                         border:
-                          '1px solid rgba(212,176,106,0.25)',
+                          '1px solid rgba(184, 151, 90,0.25)',
                       }}
                     >
                       <Clock

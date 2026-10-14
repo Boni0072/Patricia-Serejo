@@ -11,7 +11,9 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "alertas": "node scripts/monitor-alertas.mjs",
-    "alertas:once": "node scripts/monitor-alertas.mjs --once"
+    "alertas:once": "node scripts/monitor-alertas.mjs --once",
+    "deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes,storage",
+    "deploy:rules:firestore": "firebase deploy --only firestore:rules,firestore:indexes"
   },
   "dependencies": {
     "firebase": "^12.16.0",

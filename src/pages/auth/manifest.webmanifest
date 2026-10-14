@@ -4,8 +4,8 @@
   "description": "Portal de Advocacia para gestão de clientes e processos.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f8fafc",
-  "theme_color": "#0f172a",
+  "background_color": "#F7F5F0",
+  "theme_color": "#0F1F3D",
   "icons": [
     {
       "src": "/icon.svg",

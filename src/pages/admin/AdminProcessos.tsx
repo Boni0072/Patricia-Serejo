@@ -96,7 +96,7 @@ export default function AdminProcessos() {
         advogado_id: perfil?.papel === 'advogado' ? user?.uid ?? null : null,
       });
 
-      // Upload de arquivos, se houver
+      // Upload de arquivos, se houver (híbrido: base64 p/ pequenos, Storage p/ grandes)
       if (arquivos && arquivos.length > 0) {
         toast.info(`Enviando ${arquivos.length} arquivo(s)…`);
         for (const arquivo of Array.from(arquivos)) {
@@ -105,10 +105,10 @@ export default function AdminProcessos() {
           const url = await storage.uploadDocumento(caminho, arquivo);
           await db.createDocumento({
             processo_id: processoId,
-            nome: arquivo.name,
+            nome_arquivo: arquivo.name,
             url,
             tipo: 'outro',
-            enviado_por: 'advogado',
+            enviado_por_id: user?.uid ?? null,
           });
         }
       }
