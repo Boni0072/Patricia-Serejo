@@ -15,7 +15,7 @@ import {
   STATUS_PROCESSO_LABEL, STATUS_PROCESSO_COR,
   TIPO_DOCUMENTO_LABEL,
 } from '../../types/database';
-import { formatarDataHora, formatarData, tempoRelativo } from '../../lib/utils';
+import { formatarDataHora, formatarData } from '../../lib/utils';
 import { toast } from '../../components/Toast';
 
 type Aba = 'timeline' | 'documentos' | 'mensagens';
@@ -74,6 +74,7 @@ export default function PortalProcessoDetalhe() {
       await db.createMensagem({
         processo_id: id,
         remetente_id: user.uid,
+        remetente_nome: perfil?.nome ?? null,
         conteudo: novaMensagem.trim(),
         canal: 'portal',
         lida: false,
@@ -306,9 +307,12 @@ export default function PortalProcessoDetalhe() {
                           <MessageSquare size={10} /> WhatsApp
                         </p>
                       )}
+                      <p className={`text-[11px] font-medium mb-0.5 ${minha ? 'text-brand-200' : 'text-brand-700'}`}>
+                        {minha ? 'Você' : (m.remetente_nome || 'Escritório')}
+                      </p>
                       <p className="text-sm leading-relaxed whitespace-pre-wrap">{m.conteudo}</p>
                       <p className={`text-[10px] mt-1 ${minha ? 'text-brand-300' : 'text-ink-400'}`}>
-                        {tempoRelativo(m.criado_em)}
+                        {formatarDataHora(m.criado_em)}
                       </p>
                     </div>
                   </div>

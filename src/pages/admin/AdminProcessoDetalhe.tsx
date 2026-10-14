@@ -15,7 +15,7 @@ import {
   TIPO_DOCUMENTO_LABEL, TIPO_COMPROMISSO_LABEL,
   type StatusProcesso, type TipoDocumento, type TipoCompromisso,
 } from '../../types/database';
-import { formatarDataHora, formatarData, tempoRelativo } from '../../lib/utils';
+import { formatarDataHora, formatarData } from '../../lib/utils';
 import { toast } from '../../components/Toast';
 import Modal from '../../components/Modal';
 import VisualizadorDocumento from '../../components/VisualizadorDocumento';
@@ -113,6 +113,7 @@ export default function AdminProcessoDetalhe() {
       await db.createMensagem({
         processo_id: id,
         remetente_id: user.uid,
+        remetente_nome: perfil?.nome ?? null,
         conteudo: novaMsg.trim(),
         canal: 'portal',
         lida: false,
@@ -403,9 +404,12 @@ export default function AdminProcessoDetalhe() {
                         !m.lida && !minha ? 'pointer' : 'default'
                       } ${minha ? 'bg-brand-800 text-brand-50' : m.lida ? 'bg-white border border-ink-100 text-ink-800' : 'bg-white border-2 border-gold-300 text-ink-800'}`}
                     >
+                      <p className={`text-[11px] font-medium mb-0.5 ${minha ? 'text-brand-200' : 'text-brand-700'}`}>
+                        {minha ? 'Você' : (m.remetente_nome || cliente?.nome || 'Cliente')}
+                      </p>
                       <p className="text-sm whitespace-pre-wrap">{m.conteudo}</p>
                       <p className={`text-[10px] mt-1 ${minha ? 'text-brand-300' : 'text-ink-400'}`}>
-                        {tempoRelativo(m.criado_em)}{!m.lida && !minha && ' · clique para marcar como lida'}
+                        {formatarDataHora(m.criado_em)}{!m.lida && !minha && ' · clique para marcar como lida'}
                       </p>
                     </div>
                   </div>

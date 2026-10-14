@@ -4,14 +4,14 @@ import { MessageSquare, ChevronRight } from 'lucide-react';
 import * as db from '../../lib/db';
 import { useAuth } from '../../context/AuthContext';
 import type { Processo, Mensagem } from '../../types/database';
-import { tempoRelativo } from '../../lib/utils';
+import { formatarDataHora } from '../../lib/utils';
 
 interface ProcessoComMensagens extends Processo {
   ultimas_mensagens?: Mensagem[];
 }
 
 export default function PortalMensagens() {
-  const { user } = useAuth();
+  const { user, perfil } = useAuth();
   const [processos, setProcessos] = useState<Processo[]>([]);
   const [processoSelecionado, setProcessoSelecionado] = useState<Processo | null>(null);
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
@@ -40,6 +40,7 @@ export default function PortalMensagens() {
       await db.createMensagem({
         processo_id: processoSelecionado.id,
         remetente_id: user.uid,
+        remetente_nome: perfil?.nome ?? null,
         conteudo: novaMsg.trim(),
         canal: 'portal',
         lida: false,
@@ -116,9 +117,12 @@ export default function PortalMensagens() {
                           <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
                             minha ? 'bg-brand-800 text-brand-50' : 'bg-brand-50 text-ink-800'
                           }`}>
+                            <p className={`text-[11px] font-medium mb-0.5 ${minha ? 'text-brand-200' : 'text-brand-700'}`}>
+                              {minha ? 'Você' : (m.remetente_nome || 'Escritório')}
+                            </p>
                             <p className="text-sm whitespace-pre-wrap">{m.conteudo}</p>
                             <p className={`text-[10px] mt-1 ${minha ? 'text-brand-300' : 'text-ink-400'}`}>
-                              {tempoRelativo(m.criado_em)}
+                              {formatarDataHora(m.criado_em)}
                             </p>
                           </div>
                         </div>

@@ -79,6 +79,8 @@ export interface Mensagem {
   id: string;
   processo_id: string;
   remetente_id: string | null;
+  /** Nome de quem enviou a mensagem, gravado no momento do envio. */
+  remetente_nome?: string | null;
   conteudo: string;
   canal: CanalMensagem;
   lida: boolean;

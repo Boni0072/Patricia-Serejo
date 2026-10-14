@@ -14,7 +14,7 @@ import type {
 import {
   STATUS_PROCESSO_LABEL, STATUS_PROCESSO_COR, TIPO_COMPROMISSO_LABEL,
 } from '../../types/database';
-import { formatarData, formatarDataHora, formatarTelefone, tempoRelativo } from '../../lib/utils';
+import { formatarData, formatarDataHora, formatarTelefone } from '../../lib/utils';
 import { toast } from '../../components/Toast';
 import Modal from '../../components/Modal';
 
@@ -208,6 +208,7 @@ export default function AdminClienteDetalhe() {
     try {
       await db.createMensagem({
         processo_id: processoId, remetente_id: user.uid,
+        remetente_nome: perfil?.nome ?? null,
         conteudo: texto, canal: 'portal', lida: false,
       });
       setResposta({ ...resposta, [processoId]: '' });
@@ -533,8 +534,11 @@ export default function AdminClienteDetalhe() {
                         return (
                           <div key={m.id} className={`flex ${minha ? 'justify-end' : 'justify-start'}`}>
                             <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${minha ? 'bg-brand-800 text-brand-50' : 'bg-brand-50 text-ink-800'}`}>
+                              <p className={`text-[11px] font-medium mb-0.5 ${minha ? 'text-brand-200' : 'text-brand-700'}`}>
+                                {minha ? 'Você' : (m.remetente_nome || cliente?.nome || 'Cliente')}
+                              </p>
                               <p className="text-sm whitespace-pre-wrap">{m.conteudo}</p>
-                              <p className={`text-[10px] mt-1 ${minha ? 'text-brand-300' : 'text-ink-400'}`}>{tempoRelativo(m.criado_em)}</p>
+                              <p className={`text-[10px] mt-1 ${minha ? 'text-brand-300' : 'text-ink-400'}`}>{formatarDataHora(m.criado_em)}</p>
                             </div>
                           </div>
                         );
