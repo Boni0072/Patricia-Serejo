@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bell, Check, Trash2, Calendar, MessageSquare, Clock, Filter } from 'lucide-react';
+import { Bell, Check, Trash2, Calendar, MessageSquare, Clock, Filter, Eraser } from 'lucide-react';
 import * as db from '../../lib/db';
 import { useAuth } from '../../context/AuthContext';
 import type { Notificacao, TipoNotificacao } from '../../types/database';
@@ -31,7 +31,7 @@ export default function AdminNotificacoes() {
   const [notificacoes, setNotificacoes] = useState<Notificacao[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtroTipo, setFiltroTipo] = useState<TipoNotificacao | 'todos'>('todos');
-  const [filtroLeitura, setFiltroLeitura] = useState<FiltroLeitura>('nao_lidas');
+  const [filtroLeitura, setFiltroLeitura] = useState<FiltroLeitura>('todas');
 
   useEffect(() => {
     carregar();
@@ -63,6 +63,21 @@ export default function AdminNotificacoes() {
     toast.sucesso('Todas as notificações marcadas como lidas.');
   };
 
+  const limparLidas = async () => {
+    if (!user) return;
+    const total = await db.limparNotificacoesLidas(user.uid);
+    setNotificacoes((prev) => prev.filter((x) => !x.lida));
+    if (total > 0) {
+      toast.sucesso(
+        total === 1
+          ? '1 notificação lida foi removida.'
+          : `${total} notificações lidas foram removidas.`,
+      );
+    } else {
+      toast.info('Não há notificações lidas para limpar.');
+    }
+  };
+
   const excluir = async (n: Notificacao) => {
     await db.deleteNotificacao(n.id);
     setNotificacoes((prev) => prev.filter((x) => x.id !== n.id));
@@ -92,16 +107,28 @@ export default function AdminNotificacoes() {
           <h1 className="font-serif text-3xl text-brand-900">Notificações</h1>
           <p className="text-ink-500 mt-1">Alertas de agendamentos e mensagens em segundo plano.</p>
         </div>
-        {notificacoes.some((n) => !n.lida) && (
-          <button
-            onClick={marcarTodasLidas}
-            className="btn-secondary text-xs"
-            title="Marcar todas como lidas"
-          >
-            <Check size={14} />
-            Marcar todas lidas
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {notificacoes.some((n) => !n.lida) && (
+            <button
+              onClick={marcarTodasLidas}
+              className="btn-secondary text-xs"
+              title="Marcar todas como lidas"
+            >
+              <Check size={14} />
+              Marcar todas lidas
+            </button>
+          )}
+          {notificacoes.some((n) => n.lida) && (
+            <button
+              onClick={limparLidas}
+              className="btn-secondary text-xs"
+              title="Remover todas as notificações já lidas"
+            >
+              <Eraser size={14} />
+              Limpar lidas
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="card p-4 mb-6 flex flex-wrap gap-3 items-center">

@@ -519,6 +519,17 @@ export async function limparNotificoesAntigas(dias = 30, destinatarioId?: string
   return antigasLidas.length;
 }
 
+/** Exclui todas as notificações LIDAS do destinatário (limpeza manual). */
+export async function limparNotificacoesLidas(destinatarioId: string): Promise<number> {
+  const arr = await list<Notificacao>('notificacoes', [
+    where('destinatario_id', '==', destinatarioId),
+    limit(500),
+  ]);
+  const lidas = arr.filter((n) => n.lida);
+  await Promise.all(lidas.map((n) => deleteDoc(doc(db, 'notificacoes', n.id))));
+  return lidas.length;
+}
+
 /* -------------------------------------------------------------
  * PUSH TOKENS (alertas com o app fechado)
  *
@@ -1030,16 +1041,25 @@ export const cliente = {
   async listCompromissos(userId: string): Promise<(Compromisso & { processo: Processo | null })[]> {
     const procs = await this.listProcessos(userId);
     if (procs.length === 0) return [];
-    const procIds = procs.map((p) => p.id);
-    const agora = Timestamp.now();
-    const all = await list<Compromisso>('compromissos', [
-      where('data_hora', '>=', agora),
-      orderBy('data_hora', 'asc'),
-    ]);
     const procMap = new Map(procs.map((p) => [p.id, p]));
+    const procIds = new Set(procs.map((p) => p.id));
+    // Sem where/orderBy no servidor: evita índice composto e falhas quando
+    // `data_hora` foi gravado como Timestamp ou string (formatos mistos).
+    // O `normalize` já converte Timestamp -> ISO, então `new Date(...)` trata
+    // ambos os casos. Filtra e ordena em memória (mesmo padrão do admin).
+    const all = await list<Compromisso>('compromissos', [limit(500)]);
+    const agoraMs = Date.now();
     return all
-      .filter((c) => c.processo_id && procIds.includes(c.processo_id))
-      .map((c) => ({ ...c, processo: c.processo_id ? procMap.get(c.processo_id) ?? null : null }));
+      .filter((c) => c.processo_id && procIds.has(c.processo_id))
+      .map((c) => ({ ...c, processo: c.processo_id ? procMap.get(c.processo_id) ?? null : null }))
+      .filter((c) => {
+        try {
+          return new Date(c.data_hora).getTime() >= agoraMs;
+        } catch {
+          return false;
+        }
+      })
+      .sort((a, b) => new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime());
   },
 
   async createLogAcesso(log: Omit<LogAcesso, 'id' | 'criado_em'>): Promise<void> {

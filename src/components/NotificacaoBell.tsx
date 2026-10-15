@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bell, BellRing, Check, Calendar, MessageSquare, Clock, Volume2 } from 'lucide-react';
+import { Bell, BellRing, Check, Calendar, MessageSquare, Clock, Volume2, Eraser, X } from 'lucide-react';
 import { useNotificacoes } from '../context/NotificacaoContext';
 import type { Notificacao, TipoNotificacao } from '../types/database';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -22,6 +22,8 @@ export default function NotificacaoBell() {
     countNaoLidas,
     marcarComoLida,
     marcarTodasComoLidas,
+    limparLidas,
+    removerNotificacao,
     notificacoes,
     refresh,
     pushAtivo,
@@ -65,6 +67,15 @@ export default function NotificacaoBell() {
     await marcarTodasComoLidas();
   };
 
+  const handleLimparLidas = async () => {
+    await limparLidas();
+    toast.sucesso('Notificações lidas removidas.');
+  };
+
+  const handleRemover = async (id: string) => {
+    await removerNotificacao(id);
+  };
+
   const handleAtivarPush = async () => {
     const resultado = await ativarAlertasPush();
     if (resultado.ok) {
@@ -81,6 +92,7 @@ export default function NotificacaoBell() {
 
   // Exibe as 10 notificações mais recentes (lidas + não lidas)
   const recentes = notificacoes.slice(0, 10);
+  const temLidas = notificacoes.some((n) => n.lida);
 
   return (
     <div className="relative" ref={containerRef}>
@@ -105,15 +117,26 @@ export default function NotificacaoBell() {
         <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-ink-100 py-2 z-50 animate-scale-in">
           <div className="flex items-center justify-between px-4 py-2 pb-2 border-b border-ink-100">
             <h3 className="font-serif text-sm text-brand-900">Notificações</h3>
-            {countNaoLidas > 0 && (
-              <button
-                onClick={handleMarcarTodas}
-                className="text-xs text-gold-600 hover:text-gold-700 font-medium"
-                title="Marcar todas como lidas"
-              >
-                <Check size={14} />
-              </button>
-            )}
+            <div className="flex items-center gap-1">
+              {countNaoLidas > 0 && (
+                <button
+                  onClick={handleMarcarTodas}
+                  className="p-1 text-gold-600 hover:text-gold-700 font-medium"
+                  title="Marcar todas como lidas"
+                >
+                  <Check size={14} />
+                </button>
+              )}
+              {temLidas && (
+                <button
+                  onClick={handleLimparLidas}
+                  className="p-1 text-ink-400 hover:text-danger-600"
+                  title="Limpar notificações lidas"
+                >
+                  <Eraser size={14} />
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="max-h-80 overflow-y-auto">
@@ -126,34 +149,45 @@ export default function NotificacaoBell() {
               recentes.map((n) => {
                 const Icone = ICONE_TIPO[n.tipo];
                 return (
-                  <button
+                  <div
                     key={n.id}
-                    onClick={() => abrirNotificacao(n)}
-                    className={`w-full flex items-start gap-3 px-4 py-2.5 text-left transition-colors ${
+                    className={`flex items-start gap-2 px-2 py-2.5 transition-colors ${
                       !n.lida ? 'bg-brand-50' : 'hover:bg-ink-25'
                     }`}
                   >
-                    <div className={`mt-0.5 flex-shrink-0 ${COR_TIPO[n.tipo]}`}>
-                      <Icone size={16} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium ${!n.lida ? 'text-brand-900' : 'text-ink-600'}`}>
-                        {n.titulo}
-                      </p>
-                      <p className="text-xs text-ink-500 line-clamp-2">{n.mensagem}</p>
-                      <p className="text-[10px] text-ink-400 mt-0.5">
-                        {new Date(n.criado_em).toLocaleDateString('pt-BR', {
-                          day: '2-digit',
-                          month: 'short',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </p>
-                    </div>
-                    {!n.lida && (
-                      <span className="w-2 h-2 rounded-full bg-gold-500 shrink-0 mt-1" />
-                    )}
-                  </button>
+                    <button
+                      onClick={() => abrirNotificacao(n)}
+                      className="flex-1 min-w-0 flex items-start gap-3 text-left"
+                    >
+                      <div className={`mt-0.5 flex-shrink-0 ${COR_TIPO[n.tipo]}`}>
+                        <Icone size={16} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-medium ${!n.lida ? 'text-brand-900' : 'text-ink-600'}`}>
+                          {n.titulo}
+                        </p>
+                        <p className="text-xs text-ink-500 line-clamp-2">{n.mensagem}</p>
+                        <p className="text-[10px] text-ink-400 mt-0.5">
+                          {new Date(n.criado_em).toLocaleDateString('pt-BR', {
+                            day: '2-digit',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </p>
+                      </div>
+                      {!n.lida && (
+                        <span className="w-2 h-2 rounded-full bg-gold-500 shrink-0 mt-1" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleRemover(n.id)}
+                      className="mt-0.5 p-1 shrink-0 text-ink-300 hover:text-danger-600"
+                      title="Remover notificação"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
                 );
               })
             )}

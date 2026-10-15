@@ -20,6 +20,8 @@ interface NotificacaoContextValue {
   loading: boolean;
   marcarComoLida: (id: string) => Promise<void>;
   marcarTodasComoLidas: () => Promise<void>;
+  /** Exclui do Firestore todas as notificações já lidas do usuário. */
+  limparLidas: () => Promise<void>;
   removerNotificacao: (id: string) => Promise<void>;
   refresh: () => Promise<void>;
   /** Indica se o push (alertas com o app fechado) está ativo. */
@@ -277,6 +279,12 @@ export function NotificacaoProvider({ children }: { children: ReactNode }) {
     setNotificacoes((prev) => prev.filter((n) => n.id !== id));
   }, []);
 
+  const limparLidas = useCallback(async () => {
+    if (!user) return;
+    await db.limparNotificacoesLidas(user.uid);
+    setNotificacoes((prev) => prev.filter((n) => !n.lida));
+  }, [user]);
+
   return (
     <NotificacaoContext.Provider
       value={{
@@ -286,6 +294,7 @@ export function NotificacaoProvider({ children }: { children: ReactNode }) {
         loading,
         marcarComoLida,
         marcarTodasComoLidas,
+        limparLidas,
         removerNotificacao,
         refresh: carregar,
         pushAtivo,
