@@ -13,7 +13,9 @@
     "alertas": "node scripts/monitor-alertas.mjs",
     "alertas:once": "node scripts/monitor-alertas.mjs --once",
     "deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes,storage",
-    "deploy:rules:firestore": "firebase deploy --only firestore:rules,firestore:indexes"
+    "deploy:rules:firestore": "firebase deploy --only firestore:rules,firestore:indexes",
+    "deploy:rules:firestore:pinned": "npx --yes firebase-tools@13.35.1 deploy --only firestore:rules,firestore:indexes",
+    "verificar:regras:testemunhas": "npx --yes firebase-tools@13.35.1 emulators:exec --only firestore,auth --project demo-test \"node scripts/verificar-regras-testemunhas.mjs\""
   },
   "dependencies": {
     "firebase": "^12.16.0",

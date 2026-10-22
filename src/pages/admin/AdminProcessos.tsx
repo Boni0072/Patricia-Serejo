@@ -1,12 +1,18 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FolderOpen, Plus, Search, ChevronRight, Scale, Filter, ExternalLink } from 'lucide-react';
+import {
+  FolderOpen, Plus, Search, ChevronRight, Scale, Filter, ExternalLink,
+  CalendarPlus, CalendarClock, Gavel, Users, Clock as ClockIcon, Calendar,
+} from 'lucide-react';
 import * as db from '../../lib/db';
 import { useAuth } from '../../context/AuthContext';
-import type { Processo, Cliente } from '../../types/database';
-import { STATUS_PROCESSO_LABEL, STATUS_PROCESSO_COR, type StatusProcesso } from '../../types/database';
+import type { Processo, Cliente, Compromisso } from '../../types/database';
+import {
+  STATUS_PROCESSO_LABEL, STATUS_PROCESSO_COR, TIPO_COMPROMISSO_LABEL,
+  type StatusProcesso, type TipoCompromisso,
+} from '../../types/database';
 import * as storage from '../../lib/storage';
-import { formatarData } from '../../lib/utils';
+import { formatarData, formatarDataHora } from '../../lib/utils';
 import { toast } from '../../components/Toast';
 import Modal from '../../components/Modal';
 
@@ -24,6 +30,21 @@ const AREAS = [
   'Outro',
 ];
 
+/** Ícone e cor de cada tipo de compromisso (mesmo mapeamento do AdminAgenda). */
+const ICONE_COMPROMISSO: Record<TipoCompromisso, typeof Gavel> = {
+  audiencia: Gavel,
+  reuniao: Users,
+  prazo: ClockIcon,
+  outro: Calendar,
+};
+
+const COR_COMPROMISSO: Record<TipoCompromisso, string> = {
+  audiencia: 'bg-danger-100 text-danger-700 border-danger-200',
+  reuniao: 'bg-blue-100 text-blue-700 border-blue-200',
+  prazo: 'bg-warning-100 text-warning-700 border-warning-200',
+  outro: 'bg-ink-100 text-ink-700 border-ink-200',
+};
+
 export default function AdminProcessos() {
   const [processos, setProcessos] = useState<ProcessoComCliente[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -38,6 +59,15 @@ export default function AdminProcessos() {
   });
   const [salvando, setSalvando] = useState(false);
   const [arquivos, setArquivos] = useState<FileList | null>(null);
+  /** Compromissos futuros agrupados por processo (id do processo -> lista ordenada). */
+  const [compromissosPorProcesso, setCompromissosPorProcesso] = useState<Map<string, Compromisso[]>>(new Map());
+  /** Processo alvo do modal de agendamento (null = modal fechado). */
+  const [processoAgendamento, setProcessoAgendamento] = useState<ProcessoComCliente | null>(null);
+  const [modalComp, setModalComp] = useState(false);
+  const [salvandoComp, setSalvandoComp] = useState(false);
+  const [novoComp, setNovoComp] = useState({
+    titulo: '', descricao: '', data_hora: '', tipo: 'audiencia' as TipoCompromisso,
+  });
   const navigate = useNavigate();
   const { user, perfil } = useAuth();
 
@@ -55,6 +85,10 @@ export default function AdminProcessos() {
       ]);
       setProcessos(procs);
       setClientes(clients.sort((a, b) => a.nome.localeCompare(b.nome)));
+      // Carrega os agendamentos futuros em uma única consulta para exibir
+      // o próximo compromisso de cada processo no card da listagem.
+      const mapa = await db.listProximosCompromissosPorProcessos(procs.map((p) => p.id));
+      setCompromissosPorProcesso(mapa);
       setLoading(false);
     } catch {
       setLoading(false);
@@ -127,6 +161,53 @@ export default function AdminProcessos() {
     setProcessoSelecionado(null);
   };
 
+  /* ---------- Agendamento de compromisso ---------- */
+
+  const abrirAgendamento = (p: ProcessoComCliente) => {
+    setProcessoAgendamento(p);
+    setNovoComp({ titulo: '', descricao: '', data_hora: '', tipo: 'audiencia' });
+    setModalComp(true);
+  };
+
+  const salvarCompromisso = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!processoAgendamento) return;
+    if (!novoComp.titulo.trim()) {
+      toast.erro('Informe o título do compromisso.');
+      return;
+    }
+    if (!novoComp.data_hora) {
+      toast.erro('Informe a data e a hora.');
+      return;
+    }
+    const data = new Date(novoComp.data_hora);
+    if (Number.isNaN(data.getTime())) {
+      toast.erro('Data e hora inválidas.');
+      return;
+    }
+    setSalvandoComp(true);
+    try {
+      await db.createCompromisso({
+        processo_id: processoAgendamento.id,
+        titulo: novoComp.titulo.trim(),
+        descricao: novoComp.descricao.trim() || null,
+        data_hora: data.toISOString(),
+        tipo: novoComp.tipo,
+        lembrete_enviado: false,
+      });
+    } catch {
+      setSalvandoComp(false);
+      toast.erro('Erro ao agendar o compromisso.');
+      return;
+    }
+    setSalvandoComp(false);
+    toast.sucesso('Compromisso agendado!');
+    setModalComp(false);
+    setProcessoAgendamento(null);
+    // Recarrega para atualizar o próximo compromisso exibido no card.
+    carregar();
+  };
+
   return (
     <div className="p-6 sm:p-8 lg:p-10 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
@@ -185,11 +266,26 @@ export default function AdminProcessos() {
         <div className="space-y-3">
           {filtrados.map((p) => {
             const cor = STATUS_PROCESSO_COR[p.status] || 'bg-ink-100 text-ink-600 border-ink-200';
+            const comps = compromissosPorProcesso.get(p.id) ?? [];
+            const proximo = comps[0];
+            const IconeProximo = proximo ? ICONE_COMPROMISSO[proximo.tipo] : CalendarClock;
+            const abrirDetalhe = () => setProcessoSelecionado(p);
             return (
-            <button
+            <div
               key={p.id}
-              onClick={() => setProcessoSelecionado(p)}
-              className="card p-5 hover:shadow-md hover:border-brand-200 transition-all group flex items-center justify-between w-full text-left"
+              role="button"
+              tabIndex={0}
+              onClick={abrirDetalhe}
+              onKeyDown={(e) => {
+                // Ignora eventos vindos de botões internos (evita abrir o
+                // detalhe junto com a ação do botão aninhado).
+                if (e.target !== e.currentTarget) return;
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  abrirDetalhe();
+                }
+              }}
+              className="card p-5 hover:shadow-md hover:border-brand-200 transition-all group flex items-center justify-between w-full text-left cursor-pointer"
             >
               <div className="flex items-start gap-4 min-w-0 flex-1">
                 <div className="w-11 h-11 rounded-lg bg-brand-100 group-hover:bg-brand-800 transition-colors flex items-center justify-center shrink-0">
@@ -206,11 +302,49 @@ export default function AdminProcessos() {
                   {p.cliente && (
                     <p className="text-xs text-ink-400 mt-1">Cliente: {p.cliente.nome}</p>
                   )}
+
+                  {/* Próximo agendamento do processo */}
+                  {proximo ? (
+                    <div className="mt-2 flex items-start gap-2 flex-wrap">
+                      <span className={`badge ${COR_COMPROMISSO[proximo.tipo]} gap-1`}>
+                        <IconeProximo size={12} />
+                        {TIPO_COMPROMISSO_LABEL[proximo.tipo]}
+                      </span>
+                      <span className="text-xs text-ink-600 font-medium truncate max-w-full">
+                        {proximo.titulo}
+                      </span>
+                      <span className="text-xs text-ink-400">· {formatarDataHora(proximo.data_hora)}</span>
+                      {comps.length > 1 && (
+                        <span className="text-xs text-ink-400">(+{comps.length - 1} mais)</span>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-ink-400 mt-2 flex items-center gap-1.5">
+                      <CalendarClock size={13} className="text-ink-300" />
+                      Sem agendamentos
+                    </p>
+                  )}
+
                   <p className="text-xs text-ink-400 mt-1">Atualizado em {formatarData(p.atualizado_em)}</p>
                 </div>
               </div>
-              <ChevronRight size={20} className="text-ink-300 group-hover:text-brand-700 shrink-0 ml-4" />
-            </button>
+
+              {/* Ações */}
+              <div className="flex items-center gap-2 shrink-0 ml-4">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    abrirAgendamento(p);
+                  }}
+                  title="Agendar compromisso para este processo"
+                  className="btn-secondary px-3 py-2 text-xs gap-1.5"
+                >
+                  <CalendarPlus size={14} />
+                  Agendar
+                </button>
+                <ChevronRight size={20} className="text-ink-300 group-hover:text-brand-700" />
+              </div>
+            </div>
           )})}
         </div>
       )}
@@ -299,10 +433,136 @@ export default function AdminProcessos() {
                 <p className="text-sm text-ink-700 whitespace-pre-wrap">{processoSelecionado.descricao}</p>
               </div>
             )}
+
+            {/* Próximos agendamentos */}
+            <div>
+              <p className="text-xs text-ink-400 uppercase tracking-wide mb-2">
+                Próximos agendamentos
+              </p>
+              {(compromissosPorProcesso.get(processoSelecionado.id) ?? []).length === 0 ? (
+                <p className="text-sm text-ink-500">Nenhum compromisso agendado.</p>
+              ) : (
+                <div className="space-y-2">
+                  {(compromissosPorProcesso.get(processoSelecionado.id) ?? []).map((c) => {
+                    const Icone = ICONE_COMPROMISSO[c.tipo];
+                    return (
+                      <div key={c.id} className="flex items-center gap-3 p-3 rounded-lg border border-ink-100 bg-ink-50/50">
+                        <div className={`w-9 h-9 rounded-lg border flex items-center justify-center shrink-0 ${COR_COMPROMISSO[c.tipo]}`}>
+                          <Icone size={16} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-medium text-brand-900 truncate">{c.titulo}</p>
+                            <span className={`badge ${COR_COMPROMISSO[c.tipo]}`}>
+                              {TIPO_COMPROMISSO_LABEL[c.tipo]}
+                            </span>
+                          </div>
+                          <p className="text-xs text-ink-500 mt-0.5">{formatarDataHora(c.data_hora)}</p>
+                          {c.descricao && (
+                            <p className="text-xs text-ink-500 mt-0.5">{c.descricao}</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <button
+                onClick={() => {
+                  const alvo = processoSelecionado;
+                  fecharModalDetalhe();
+                  abrirAgendamento(alvo);
+                }}
+                className="btn-secondary w-full justify-center mt-3"
+              >
+                <CalendarPlus size={16} /> Agendar compromisso
+              </button>
+            </div>
+
             <button onClick={() => navigate(`/admin/processos/${processoSelecionado.id}`)} className="btn-primary w-full justify-center mt-2"><ExternalLink size={16} /> Editar / Ver detalhes</button>
           </div>
         </Modal>
       )}
+
+      {/* Modal Agendar compromisso */}
+      <Modal
+        aberto={modalComp}
+        onFechar={() => {
+          setModalComp(false);
+          setProcessoAgendamento(null);
+        }}
+        titulo="Agendar compromisso"
+      >
+        <form onSubmit={salvarCompromisso} className="space-y-4">
+          {processoAgendamento && (
+            <div className="p-3 rounded-lg bg-brand-50 border border-brand-100">
+              <p className="text-xs text-ink-400 uppercase tracking-wide">Processo</p>
+              <p className="text-sm font-medium text-brand-900">{processoAgendamento.titulo}</p>
+              <p className="text-xs text-ink-500 mt-0.5">
+                {processoAgendamento.numero} · {processoAgendamento.area_direito}
+              </p>
+            </div>
+          )}
+          <div>
+            <label className="block text-sm font-medium text-ink-700 mb-1.5">Título *</label>
+            <input
+              required
+              value={novoComp.titulo}
+              onChange={(e) => setNovoComp({ ...novoComp, titulo: e.target.value })}
+              className="input-field"
+              placeholder="Ex.: Audiência de instrução"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-ink-700 mb-1.5">Data e hora *</label>
+              <input
+                required
+                type="datetime-local"
+                value={novoComp.data_hora}
+                onChange={(e) => setNovoComp({ ...novoComp, data_hora: e.target.value })}
+                className="input-field"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-ink-700 mb-1.5">Tipo</label>
+              <select
+                value={novoComp.tipo}
+                onChange={(e) => setNovoComp({ ...novoComp, tipo: e.target.value as TipoCompromisso })}
+                className="input-field"
+              >
+                {Object.entries(TIPO_COMPROMISSO_LABEL).map(([v, l]) => (
+                  <option key={v} value={v}>{l}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-ink-700 mb-1.5">Descrição</label>
+            <textarea
+              value={novoComp.descricao}
+              onChange={(e) => setNovoComp({ ...novoComp, descricao: e.target.value })}
+              className="input-field min-h-[70px] resize-y"
+              placeholder="Detalhes do compromisso (opcional)"
+            />
+          </div>
+          <div className="flex gap-3 justify-end pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                setModalComp(false);
+                setProcessoAgendamento(null);
+              }}
+              className="btn-secondary"
+            >
+              Cancelar
+            </button>
+            <button type="submit" disabled={salvandoComp} className="btn-primary">
+              {salvandoComp ? 'Agendando…' : 'Agendar compromisso'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

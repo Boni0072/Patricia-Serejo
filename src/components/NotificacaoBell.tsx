@@ -90,7 +90,10 @@ export default function NotificacaoBell() {
     toast.info('Alertas push desativados.');
   };
 
-  // Exibe as 10 notificações mais recentes (lidas + não lidas)
+  // Exibe as 10 notificações mais recentes (lidas + não lidas).
+  // As notificações são filtradas por destinatario_id === user.uid tanto na
+  // query Firestore quanto no cliente (NotificacaoContext), garantindo que o
+  // sino nunca exiba notificações de outro usuário.
   const recentes = notificacoes.slice(0, 10);
   const temLidas = notificacoes.some((n) => n.lida);
 

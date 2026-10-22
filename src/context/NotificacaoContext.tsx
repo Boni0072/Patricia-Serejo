@@ -100,7 +100,9 @@ export function NotificacaoProvider({ children }: { children: ReactNode }) {
     }
     setLoading(true);
     try {
-      const lista = await db.listNotificoes(user.uid);
+      const lista = (await db.listNotificoes(user.uid)).filter(
+        (n) => n.destinatario_id === user.uid,
+      );
       const idsAnteriores = new Set(notificacoesRef.current.map((n) => n.id));
       const novas = inicializadoRef.current
         ? lista.filter((n) => !idsAnteriores.has(n.id) && !n.lida)

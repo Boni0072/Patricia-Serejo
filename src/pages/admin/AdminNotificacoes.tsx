@@ -41,7 +41,9 @@ export default function AdminNotificacoes() {
     if (!user) return;
     setLoading(true);
     try {
-      const lista = await db.listNotificoes(user.uid);
+      const lista = (await db.listNotificoes(user.uid)).filter(
+        (n) => n.destinatario_id === user.uid,
+      );
       setNotificacoes(lista);
     } catch {
       toast.erro('Erro ao carregar notificações.');

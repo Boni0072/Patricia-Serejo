@@ -7,6 +7,20 @@ service cloud.firestore {
     function perfil() { return get(/databases/$(database)/documents/perfis/$(uid())).data; }
     function papel() { return isSignedIn() && exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'admin' || (isSignedIn() && exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'advogado'); }
     function isAdmin() { return isSignedIn() && exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'admin'; }
+    function isAdvogado() { return isSignedIn() && exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'advogado'; }
+    function isEquipe() { return isAdmin() || isAdvogado(); }
+
+    // O cliente informado pertence ao usuario logado?
+    function clienteDoUsuario(clienteId) {
+      return exists(/databases/$(database)/documents/clientes/$(clienteId)) &&
+        get(/databases/$(database)/documents/clientes/$(clienteId)).data.user_id == uid();
+    }
+
+    // O processo informado pertence ao cliente logado?
+    function processoDoCliente(processoId) {
+      return exists(/databases/$(database)/documents/processos/$(processoId)) &&
+        clienteDoUsuario(get(/databases/$(database)/documents/processos/$(processoId)).data.cliente_id);
+    }
 
     // perfis — usuario le/atualiza o proprio; admin le todos
     match /perfis/{userId} {
@@ -126,6 +140,37 @@ service cloud.firestore {
     match /consentimentos_lgpd/{id} {
       allow read: if isSignedIn() && (resource.data.user_id == uid() || isAdmin());
       allow create: if isSignedIn() && request.resource.data.user_id == uid();
+    }
+
+    // testemunhas — testemunhas vinculadas a um processo.
+    // Admin/advogado: acesso total. Cliente: apenas as testemunhas ATIVAS dos
+    // processos que lhe pertencem (verificado via processo -> cliente -> user_id).
+    match /testemunhas/{id} {
+      allow read: if isSignedIn() && (
+        isEquipe() ||
+        (resource.data.ativo == true && processoDoCliente(resource.data.processo_id))
+      );
+      allow create: if isSignedIn() && (
+        isEquipe() ||
+        (
+          request.resource.data.ativo == true &&
+          processoDoCliente(request.resource.data.processo_id)
+        )
+      );
+      allow update: if isSignedIn() && (
+        isEquipe() ||
+        (
+          // O cliente não pode trocar a testemunha de processo nem reativá-la
+          // (só pode desativar, o que equivale a uma remoção lógica).
+          request.resource.data.processo_id == resource.data.processo_id &&
+          (
+            request.resource.data.ativo == resource.data.ativo ||
+            request.resource.data.ativo == false
+          ) &&
+          processoDoCliente(resource.data.processo_id)
+        )
+      );
+      allow delete: if isAdmin();
     }
   }
 }

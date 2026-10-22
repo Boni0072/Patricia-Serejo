@@ -3,24 +3,29 @@ import { useParams, Link } from 'react-router-dom';
 import {
   ChevronLeft, Scale, FileText, Upload, Download, Send, Clock,
   MessageSquare, Plus, Trash2, AlertCircle, User, Calendar, Eye,
+  UserCheck, Pencil,
 } from 'lucide-react';
 import * as db from '../../lib/db';
 import { uploadDocumento, caminhoDocumentoUpload, deleteDocumentoArquivo, baixarDocumentoURL } from '../../lib/storage';
 import { useAuth } from '../../context/AuthContext';
 import type {
-  Processo, Movimentacao, Documento, Mensagem, Cliente, Compromisso,
+  Processo, Movimentacao, Documento, Mensagem, Cliente, Compromisso, Testemunha,
 } from '../../types/database';
 import {
   STATUS_PROCESSO_LABEL, STATUS_PROCESSO_COR,
   TIPO_DOCUMENTO_LABEL, TIPO_COMPROMISSO_LABEL,
   type StatusProcesso, type TipoDocumento, type TipoCompromisso,
 } from '../../types/database';
-import { formatarDataHora, formatarData } from '../../lib/utils';
+import { formatarDataHora, formatarData, formatarTelefone, formatarCPF, mascaraCPF } from '../../lib/utils';
 import { toast } from '../../components/Toast';
 import Modal from '../../components/Modal';
 import VisualizadorDocumento from '../../components/VisualizadorDocumento';
 
-type Aba = 'timeline' | 'documentos' | 'mensagens' | 'compromissos';
+type Aba = 'timeline' | 'documentos' | 'mensagens' | 'compromissos' | 'testemunhas';
+
+const FORM_TESTEMUNHA_VAZIO = {
+  nome: '', email: '', telefone: '', cpf: '', cargo: '', relacao: '', endereco: '',
+};
 
 export default function AdminProcessoDetalhe() {
   const { id } = useParams() as { id: string };
@@ -42,6 +47,13 @@ export default function AdminProcessoDetalhe() {
     titulo: '', descricao: '', data_hora: '', tipo: 'audiencia' as TipoCompromisso,
   });
   const [docVisualizando, setDocVisualizando] = useState<Documento | null>(null);
+  // Testemunhas
+  const [testemunhas, setTestemunhas] = useState<Testemunha[]>([]);
+  const [modalTestemunha, setModalTestemunha] = useState(false);
+  const [editandoTestemunha, setEditandoTestemunha] = useState<Testemunha | null>(null);
+  const [formTestemunha, setFormTestemunha] = useState({ ...FORM_TESTEMUNHA_VAZIO });
+  const [salvandoTestemunha, setSalvandoTestemunha] = useState(false);
+  const [erroTestemunhas, setErroTestemunhas] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const podeGerenciar = perfil?.papel === 'admin' || perfil?.papel === 'advogado';
 
@@ -67,6 +79,21 @@ export default function AdminProcessoDetalhe() {
     setDocumentos(docs);
     setMensagens(msgs);
     setCompromissos(comps);
+
+    // Testemunhas — falhas de permissão não devem derrubar a página:
+    // a aba simplesmente informa que os dados estão indisponíveis.
+    try {
+      const test = await db.listTestemunhasVisivel(perfil?.papel, user?.uid ?? '', id);
+      setTestemunhas(test);
+      setErroTestemunhas(null);
+    } catch (e) {
+      console.error('Falha ao carregar as testemunhas:', e);
+      setTestemunhas([]);
+      setErroTestemunhas(
+        'Não foi possível carregar as testemunhas. Verifique as permissões do ' +
+        'Firestore para a coleção "testemunhas".',
+      );
+    }
     setLoading(false);
   };
 
@@ -199,6 +226,76 @@ export default function AdminProcessoDetalhe() {
     carregar();
   };
 
+  /* ---------- Testemunhas ---------- */
+
+  const abrirModalNovaTestemunha = () => {
+    setEditandoTestemunha(null);
+    setFormTestemunha({ ...FORM_TESTEMUNHA_VAZIO });
+    setModalTestemunha(true);
+  };
+
+  const abrirModalEditarTestemunha = (t: Testemunha) => {
+    setEditandoTestemunha(t);
+    setFormTestemunha({
+      nome: t.nome ?? '',
+      email: t.email ?? '',
+      telefone: t.telefone ?? '',
+      cpf: t.cpf ?? '',
+      cargo: t.cargo ?? '',
+      relacao: t.relacao ?? '',
+      endereco: t.endereco ?? '',
+    });
+    setModalTestemunha(true);
+  };
+
+  const salvarTestemunha = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+    if (!formTestemunha.nome.trim()) {
+      toast.erro('Informe o nome da testemunha.');
+      return;
+    }
+    setSalvandoTestemunha(true);
+    const dados = {
+      nome: formTestemunha.nome.trim(),
+      email: formTestemunha.email.trim() || null,
+      telefone: formTestemunha.telefone.trim() || null,
+      cpf: formTestemunha.cpf.trim() || null,
+      cargo: formTestemunha.cargo.trim() || null,
+      relacao: formTestemunha.relacao.trim() || null,
+      endereco: formTestemunha.endereco.trim() || null,
+    };
+    try {
+      if (editandoTestemunha) {
+        await db.updateTestemunha(editandoTestemunha.id, dados);
+      } else {
+        await db.createTestemunha({ ...dados, processo_id: id });
+      }
+    } catch {
+      setSalvandoTestemunha(false);
+      toast.erro('Erro ao salvar a testemunha.');
+      return;
+    }
+    setSalvandoTestemunha(false);
+    toast.sucesso(editandoTestemunha ? 'Testemunha atualizada!' : 'Testemunha registrada!');
+    setModalTestemunha(false);
+    setEditandoTestemunha(null);
+    setFormTestemunha({ ...FORM_TESTEMUNHA_VAZIO });
+    carregar();
+  };
+
+  const excluirTestemunha = async (t: Testemunha) => {
+    if (!confirm(`Remover a testemunha "${t.nome}"?`)) return;
+    try {
+      await db.deleteTestemunha(t.id);
+    } catch {
+      toast.erro('Erro ao remover a testemunha.');
+      return;
+    }
+    toast.sucesso('Testemunha removida.');
+    carregar();
+  };
+
   if (loading) {
     return <div className="p-8"><div className="w-8 h-8 border-4 border-brand-200 border-t-brand-700 rounded-full animate-spin mx-auto" /></div>;
   }
@@ -218,6 +315,7 @@ export default function AdminProcessoDetalhe() {
     { id: 'documentos', label: 'Documentos', badge: documentos.length },
     { id: 'mensagens', label: 'Mensagens', badge: mensagens.filter((m) => !m.lida).length },
     { id: 'compromissos', label: 'Compromissos', badge: compromissos.length },
+    { id: 'testemunhas', label: 'Testemunhas', badge: testemunhas.length },
   ];
 
   return (
@@ -470,6 +568,95 @@ export default function AdminProcessoDetalhe() {
         </div>
       )}
 
+      {/* Testemunhas */}
+      {aba === 'testemunhas' && (
+        <div className="animate-fade-in">
+          <div className="mb-4 flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <h3 className="font-serif text-lg text-brand-900">Testemunhas do processo</h3>
+              <p className="text-xs text-ink-500 mt-0.5">
+                Registre as pessoas que podem depor sobre os fatos deste processo.
+              </p>
+            </div>
+            {podeGerenciar && (
+              <button onClick={abrirModalNovaTestemunha} className="btn-primary text-sm">
+                <Plus size={16} /> Registrar testemunha
+              </button>
+            )}
+          </div>
+
+          {erroTestemunhas && (
+            <div className="card p-4 mb-4 flex items-start gap-3 border-l-4 border-l-red-500">
+              <AlertCircle size={18} className="text-red-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-ink-800">Testemunhas indisponíveis</p>
+                <p className="text-xs text-ink-500 mt-0.5">{erroTestemunhas}</p>
+              </div>
+            </div>
+          )}
+
+          {testemunhas.length === 0 ? (
+            <div className="card p-8 text-center text-ink-500 text-sm">
+              {erroTestemunhas
+                ? 'Não foi possível carregar as testemunhas deste processo.'
+                : 'Nenhuma testemunha registrada neste processo.'}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {testemunhas.map((t) => (
+                <div key={t.id} className="card p-4 flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
+                      t.ativo ? 'bg-brand-100' : 'bg-ink-100'
+                    }`}>
+                      <UserCheck size={18} className={t.ativo ? 'text-brand-700' : 'text-ink-400'} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-brand-900 truncate">{t.nome}</p>
+                      <p className="text-xs text-ink-400 mt-0.5">
+                        {[t.relacao, t.cargo].filter(Boolean).join(' · ') || 'Sem relação informada'}
+                      </p>
+                      <div className="mt-1.5 space-y-0.5 text-xs text-ink-500">
+                        {t.email && <p className="truncate">{t.email}</p>}
+                        {t.telefone && <p>{formatarTelefone(t.telefone)}</p>}
+                        {t.cpf && <p>CPF: {formatarCPF(t.cpf)}</p>}
+                        {t.endereco && <p className="truncate">{t.endereco}</p>}
+                      </div>
+                      <p className="text-[11px] text-ink-400 mt-1.5">
+                        Registrada em {formatarData(t.criado_em)}
+                      </p>
+                      {!t.ativo && (
+                        <span className="inline-block mt-1.5 px-2 py-0.5 bg-ink-100 text-ink-500 text-[11px] rounded-full">
+                          Removida
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {podeGerenciar && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => abrirModalEditarTestemunha(t)}
+                        className="btn-ghost text-sm"
+                        title="Editar testemunha"
+                      >
+                        <Pencil size={16} /> Editar
+                      </button>
+                      <button
+                        onClick={() => excluirTestemunha(t)}
+                        className="btn-ghost text-sm text-danger-600 hover:text-danger-700"
+                        title="Remover testemunha"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Modal movimentação */}
       <Modal aberto={modalMov} onFechar={() => setModalMov(false)} titulo="Adicionar movimentação" tamanho="sm">
         <form onSubmit={adicionarMovimentacao} className="space-y-4">
@@ -526,6 +713,111 @@ export default function AdminProcessoDetalhe() {
           <div className="flex gap-3 justify-end">
             <button type="button" onClick={() => setModalComp(false)} className="btn-secondary">Cancelar</button>
             <button type="submit" className="btn-primary">Agendar</button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal de cadastro/edição de testemunha */}
+      <Modal
+        aberto={modalTestemunha}
+        onFechar={() => {
+          setModalTestemunha(false);
+          setEditandoTestemunha(null);
+        }}
+        titulo={editandoTestemunha ? 'Editar testemunha' : 'Registrar testemunha'}
+        tamanho="md"
+      >
+        <form onSubmit={salvarTestemunha} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-ink-700 mb-1.5">Nome *</label>
+            <input
+              required
+              value={formTestemunha.nome}
+              onChange={(e) => setFormTestemunha({ ...formTestemunha, nome: e.target.value })}
+              className="input-field"
+              placeholder="Nome da testemunha"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-ink-700 mb-1.5">E-mail</label>
+              <input
+                type="email"
+                value={formTestemunha.email}
+                onChange={(e) => setFormTestemunha({ ...formTestemunha, email: e.target.value })}
+                className="input-field"
+                placeholder="email@exemplo.com"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-ink-700 mb-1.5">Telefone</label>
+              <input
+                value={formTestemunha.telefone}
+                onChange={(e) => setFormTestemunha({ ...formTestemunha, telefone: e.target.value })}
+                className="input-field"
+                placeholder="(00) 00000-0000"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-ink-700 mb-1.5">CPF</label>
+              <input
+                value={formTestemunha.cpf}
+                onChange={(e) => setFormTestemunha({ ...formTestemunha, cpf: mascaraCPF(e.target.value) })}
+                className="input-field"
+                placeholder="000.000.000-00"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-ink-700 mb-1.5">Cargo / função</label>
+              <input
+                value={formTestemunha.cargo}
+                onChange={(e) => setFormTestemunha({ ...formTestemunha, cargo: e.target.value })}
+                className="input-field"
+                placeholder="Ex.: sócia, vizinho, auditor"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-ink-700 mb-1.5">Relação com o processo</label>
+            <input
+              value={formTestemunha.relacao}
+              onChange={(e) => setFormTestemunha({ ...formTestemunha, relacao: e.target.value })}
+              className="input-field"
+              placeholder="Ex.: funcionária da empresa ré"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-ink-700 mb-1.5">Endereço</label>
+            <input
+              value={formTestemunha.endereco}
+              onChange={(e) => setFormTestemunha({ ...formTestemunha, endereco: e.target.value })}
+              className="input-field"
+              placeholder="Rua, número, bairro, cidade"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                setModalTestemunha(false);
+                setEditandoTestemunha(null);
+              }}
+              className="btn-secondary"
+            >
+              Cancelar
+            </button>
+            <button type="submit" disabled={salvandoTestemunha} className="btn-primary">
+              {salvandoTestemunha
+                ? 'Salvando…'
+                : (editandoTestemunha ? 'Salvar alterações' : 'Registrar testemunha')}
+            </button>
           </div>
         </form>
       </Modal>

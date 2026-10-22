@@ -32,6 +32,14 @@
         { "fieldPath": "criado_em", "order": "ASCENDING" },
         { "fieldPath": "lida", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "testemunhas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "processo_id", "order": "ASCENDING" },
+        { "fieldPath": "ativo", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

@@ -30,7 +30,7 @@ import { formatarDataHora } from './utils';
 import type {
   Perfil, Cliente, Processo, Movimentacao, Documento, Mensagem,
   Compromisso, AreaAtuacao, Depoimento, ConteudoSite, LogAcesso,
-  Notificacao, TipoNotificacao,
+  Notificacao, TipoNotificacao, Testemunha,
   Papel, StatusProcesso, TipoCompromisso, TipoDocumento, CanalMensagem,
 } from '../types/database';
 import { TIPO_COMPROMISSO_LABEL } from '../types/database';
@@ -309,6 +309,40 @@ export async function listProximosCompromissos(maxCount = 5): Promise<Compromiss
     })
     .sort((a, b) => new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime())
     .slice(0, maxCount);
+}
+
+/**
+ * Compromissos futuros agrupados por `processo_id`.
+ *
+ * Usado nas listagens de processos para exibir o agendamento mais próximo.
+ * Faz UMA única consulta sem `where`/`orderBy` no servidor (evita índices
+ * compostos e o problema de `data_hora` gravado ora como Timestamp, ora como
+ * string). O filtro e a ordenação são feitos em memória, no mesmo padrão de
+ * `listProximosCompromissos`.
+ */
+export async function listProximosCompromissosPorProcessos(
+  processoIds: string[],
+): Promise<Map<string, Compromisso[]>> {
+  const porProcesso = new Map<string, Compromisso[]>();
+  if (processoIds.length === 0) return porProcesso;
+
+  const alvo = new Set(processoIds);
+  const agoraMs = Date.now();
+  const todos = await list<Compromisso>('compromissos', [limit(500)]);
+
+  for (const c of todos) {
+    if (!c.processo_id || !alvo.has(c.processo_id)) continue;
+    const ts = new Date(c.data_hora).getTime();
+    if (!Number.isFinite(ts) || ts < agoraMs) continue;
+    const arr = porProcesso.get(c.processo_id) ?? [];
+    arr.push(c);
+    porProcesso.set(c.processo_id, arr);
+  }
+
+  for (const arr of porProcesso.values()) {
+    arr.sort((a, b) => new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime());
+  }
+  return porProcesso;
 }
 
 export async function createCompromisso(c: Omit<Compromisso, 'id' | 'criado_em'>): Promise<string> {
@@ -1071,7 +1105,112 @@ export const cliente = {
       user_id, versao_termos: '1.0', consentiu: true, criado_em: serverTimestamp(),
     });
   },
+
+  /* ============================================================
+   * TESTEMUNHAS — o cliente só enxerga as testemunhas dos
+   * processos que lhe pertencem (verificado via getProcesso).
+   * ============================================================ */
+
+  async listTestemunhas(userId: string, processoId: string): Promise<Testemunha[]> {
+    const processo = await this.getProcesso(userId, processoId);
+    if (!processo) return [];
+    return listTestemunhasByProcesso(processoId);
+  },
+
+  async createTestemunha(
+    userId: string,
+    t: Omit<Testemunha, 'id' | 'criado_em' | 'ativo'> & { ativo?: boolean },
+  ): Promise<string> {
+    const processo = await this.getProcesso(userId, t.processo_id);
+    if (!processo) throw new Error('Permissão negada');
+    return createTestemunha(t);
+  },
+
+  async updateTestemunha(
+    userId: string,
+    id: string,
+    dados: Partial<Pick<Testemunha, 'nome' | 'email' | 'telefone' | 'cpf' | 'endereco' | 'cargo' | 'relacao'>>,
+  ): Promise<void> {
+    const atual = await getTestemunha(id);
+    if (!atual) throw new Error('Testemunha não encontrada.');
+    const processo = await this.getProcesso(userId, atual.processo_id);
+    if (!processo) throw new Error('Permissão negada');
+    await updateTestemunha(id, dados);
+  },
+
+  async deleteTestemunha(userId: string, id: string): Promise<void> {
+    const atual = await getTestemunha(id);
+    if (!atual) throw new Error('Testemunha não encontrada.');
+    const processo = await this.getProcesso(userId, atual.processo_id);
+    if (!processo) throw new Error('Permissão negada');
+    await deleteTestemunha(id);
+  },
 };
 
+  /* ============================================================
+ * TESTEMUNHAS — registros vinculados a um processo.
+ * As funções `cliente.*` escopam o acesso pelo processo do
+ * cliente autenticado (portal). As funções livres são de uso
+ * administrativo (admin/advogado).
+ * ============================================================ */
+
+export async function listTestemunhasByProcesso(
+  processoId: string,
+  apenasAtivas = true,
+): Promise<Testemunha[]> {
+  // Filtro no servidor (com índice composto processo_id + ativo) para que a
+  // regra `resource.data.ativo == true` do portal seja satisfeita na consulta.
+  const arr = apenasAtivas
+    ? await list<Testemunha>('testemunhas', [
+        where('processo_id', '==', processoId),
+        where('ativo', '==', true),
+      ])
+    : await list<Testemunha>('testemunhas', [where('processo_id', '==', processoId)]);
+  return arr.sort((a, b) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime());
+}
+
+/**
+ * Lista as testemunhas de um processo respeitando o papel do usuário.
+ * - cliente: apenas as ATIVAS dos processos que lhe pertencem
+ *   (via `cliente.listTestemunhas`, que também valida a posse do processo)
+ * - admin/advogado: todas, inclusive as inativas (removidas logicamente)
+ */
+export async function listTestemunhasVisivel(
+  papel: Papel | null | undefined,
+  uid: string,
+  processoId: string,
+): Promise<Testemunha[]> {
+  if (papel === 'admin' || papel === 'advogado') {
+    return listTestemunhasByProcesso(processoId, false);
+  }
+  return cliente.listTestemunhas(uid, processoId);
+}
+
+export async function getTestemunha(id: string): Promise<Testemunha | null> {
+  return one<Testemunha>('testemunhas', id);
+}
+
+export async function createTestemunha(
+  t: Omit<Testemunha, 'id' | 'criado_em' | 'ativo'> & { ativo?: boolean },
+): Promise<string> {
+  const ref = await addDoc(collection(db, 'testemunhas'), {
+    ...t,
+    ativo: t.ativo ?? true,
+    criado_em: serverTimestamp(),
+    atualizado_em: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function updateTestemunha(
+  id: string,
+  dados: Partial<Pick<Testemunha, 'nome' | 'email' | 'telefone' | 'cpf' | 'endereco' | 'cargo' | 'relacao' | 'ativo'>>,
+): Promise<void> {
+  await updateDoc(doc(db, 'testemunhas', id), { ...dados, atualizado_em: serverTimestamp() });
+}
+
+export async function deleteTestemunha(id: string): Promise<void> {
+  await updateDoc(doc(db, 'testemunhas', id), { ativo: false, atualizado_em: serverTimestamp() });
+}
 export { toTimestamp, serverTimestamp, Timestamp };
 export type { Papel, StatusProcesso, TipoCompromisso, TipoDocumento, CanalMensagem, Notificacao, TipoNotificacao };

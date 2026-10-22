@@ -57,6 +57,20 @@ export interface Processo {
   atualizado_em: string;
 }
 
+export interface Testemunha {
+  id: string;
+  processo_id: string;
+  nome: string;
+  email: string | null;
+  telefone: string | null;
+  cpf: string | null;
+  endereco: string | null;
+  cargo: string | null;
+  relacao: string | null;
+  ativo: boolean;
+  criado_em: string;
+}
+
 export interface Movimentacao {
   id: string;
   processo_id: string;
