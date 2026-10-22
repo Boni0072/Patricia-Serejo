@@ -460,14 +460,21 @@ const LIMITE_LEMBRETE_HORAS = 24;
 
 export async function createNotificacao(
   n: Omit<Notificacao, 'id' | 'criado_em' | 'atualizado_em' | 'lida' | 'push_enviado' | 'push_enviado_em'>,
+  id?: string,
 ): Promise<string> {
-  const ref = await addDoc(collection(db, 'notificacoes'), {
+  const payload = {
     ...n,
     lida: false,
     push_enviado: false,
     criado_em: serverTimestamp(),
     atualizado_em: serverTimestamp(),
-  });
+  };
+  if (id) {
+    // Idempotente: mesmo ID sempre atualiza o mesmo documento, nunca duplica.
+    await setDoc(doc(collection(db, 'notificacoes'), id), payload, { merge: true });
+    return id;
+  }
+  const ref = await addDoc(collection(db, 'notificacoes'), payload);
   return ref.id;
 }
 
@@ -708,7 +715,7 @@ export async function verificarLembretesCompromissos(): Promise<number> {
   for (const c of pendentes) {
     try {
       await criarNotificacaoLembrete(c);
-      await updateCompromissoInterno(c.id, { lembrete_enviado: true });
+      await updateCompromisso(c.id, { lembrete_enviado: true });
       count++;
     } catch {
       // Ignora erros individuais sem interromper o loop
@@ -729,14 +736,19 @@ async function criarNotificacaoLembrete(
 
   await Promise.all(
     [...dest].map((uid) =>
-      createNotificacao({
-        destinatario_id: uid,
-        titulo,
-        mensagem: texto,
-        tipo: 'lembrete',
-        origem_id: c.id ?? null,
-        origem_tipo: 'compromisso',
-      }),
+      createNotificacao(
+        {
+          destinatario_id: uid,
+          titulo,
+          mensagem: texto,
+          tipo: 'lembrete',
+          origem_id: c.id ?? null,
+          origem_tipo: 'compromisso',
+        },
+        // ID determinístico por compromisso + destinatário: evita duplicatas
+        // se a função for chamada mais de uma vez para o mesmo lembrete.
+        `lembrete_${c.id ?? 'sem-id'}_${uid}`,
+      ),
     ),
   );
 }

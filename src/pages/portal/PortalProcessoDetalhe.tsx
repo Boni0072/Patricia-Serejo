@@ -285,7 +285,7 @@ export default function PortalProcessoDetalhe() {
   ];
 
   return (
-    <div className="p-6 sm:p-8 lg:p-10 max-w-5xl mx-auto">
+    <div className="p-6 sm:p-8 lg:p-10 w-full">
       <Link to="/portal/processos" className="inline-flex items-center gap-1 text-ink-500 hover:text-brand-800 text-sm mb-6">
         <ChevronLeft size={18} />
         Voltar aos processos

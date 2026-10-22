@@ -61,7 +61,7 @@ export default function PortalMensagens() {
   }
 
   return (
-    <div className="p-6 sm:p-8 lg:p-10 max-w-6xl mx-auto">
+    <div className="p-6 sm:p-8 lg:p-10 w-full">
       <div className="mb-8">
         <h1 className="font-serif text-3xl text-brand-900">Mensagens</h1>
         <p className="text-ink-500 mt-1">Converse com o escritório sobre seus processos.</p>

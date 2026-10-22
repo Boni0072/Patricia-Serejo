@@ -55,7 +55,7 @@ export default function PortalAgenda() {
   }
 
   return (
-    <div className="p-6 sm:p-8 lg:p-10 max-w-4xl mx-auto">
+    <div className="p-6 sm:p-8 lg:p-10 w-full">
       <div className="mb-8">
         <h1 className="font-serif text-3xl text-brand-900">Próximos Compromissos</h1>
         <p className="text-ink-500 mt-1">Audiências, reuniões e prazos agendados.</p>

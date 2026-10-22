@@ -102,7 +102,7 @@ export default function PortalPerfil() {
   }
 
   return (
-    <div className="p-6 sm:p-8 lg:p-10 max-w-2xl mx-auto">
+    <div className="p-6 sm:p-8 lg:p-10 w-full">
       <div className="mb-8">
         <h1 className="font-serif text-3xl text-brand-900">Meu Perfil</h1>
         <p className="text-ink-500 mt-1">Gerencie seus dados de contato e acesso.</p>

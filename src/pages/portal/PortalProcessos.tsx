@@ -35,7 +35,7 @@ export default function PortalProcessos() {
   }
 
   return (
-    <div className="p-6 sm:p-8 lg:p-10 max-w-5xl mx-auto">
+    <div className="p-6 sm:p-8 lg:p-10 w-full">
       <div className="mb-8">
         <h1 className="font-serif text-3xl text-brand-900">Meus Processos</h1>
         <p className="text-ink-500 mt-1">Acompanhe o andamento dos seus processos.</p>

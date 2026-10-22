@@ -99,7 +99,7 @@ export default function AdminMensagens() {
   const totalNaoLidas = conversas.reduce((acc, c) => acc + c.naoLidas, 0);
 
   return (
-    <div className="p-6 sm:p-8 lg:p-10 max-w-7xl mx-auto">
+    <div className="p-6 sm:p-8 lg:p-10 w-full">
       <div className="mb-8">
         <h1 className="font-serif text-3xl text-brand-900">Mensagens</h1>
         <p className="text-ink-500 mt-1">

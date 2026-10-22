@@ -228,7 +228,7 @@ export default function AdminAdvogados() {
   }
 
   return (
-    <div className="p-6 sm:p-8 lg:p-10 max-w-6xl mx-auto">
+    <div className="p-6 sm:p-8 lg:p-10 w-full">
       <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
         <div>
           <h1 className="font-serif text-3xl text-brand-900">Advogados</h1>
