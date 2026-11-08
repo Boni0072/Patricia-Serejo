@@ -56,6 +56,7 @@ export default function AdminProcessoDetalhe() {
   const [erroTestemunhas, setErroTestemunhas] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const podeGerenciar = perfil?.papel === 'admin' || perfil?.papel === 'advogado';
+  const [visivelDocumento, setVisivelDocumento] = useState(true);
 
   useEffect(() => {
     if (!id) return;
@@ -71,7 +72,7 @@ export default function AdminProcessoDetalhe() {
     }
     const [movs, docs, msgs, comps] = await Promise.all([
       db.listMovimentacoes(id),
-      db.listDocumentos(id),
+      db.listDocumentosVisivel(perfil?.papel, user?.uid ?? '', id),
       db.listMensagens(id),
       db.listCompromissosByProcesso(id),
     ]);
@@ -182,6 +183,7 @@ export default function AdminProcessoDetalhe() {
         nome_arquivo: file.name,
         url: publicUrl,
         tipo: 'outro',
+        visivel: visivelDocumento,
         enviado_por_id: user.uid,
       });
     } catch {
@@ -198,6 +200,17 @@ export default function AdminProcessoDetalhe() {
     if (!confirm(`Excluir "${d.nome_arquivo}"?`)) return;
     await Promise.all([db.deleteDocumento(d.id), deleteDocumentoArquivo(d.url)]);
     carregar();
+  };
+
+  const toggleDocumentoVisivel = async (d: Documento, visivel: boolean) => {
+    try {
+      await db.updateDocumentoVisivel(d.id, visivel);
+      toast.sucesso(`Documento ${visivel ? 'visível' : 'oculto'} para o cliente.`);
+      carregar();
+    } catch {
+      toast.erro('Erro ao alterar visibilidade do documento.');
+      carregar();
+    }
   };
 
   const baixarDocumento = (d: Documento) => {
@@ -473,9 +486,20 @@ export default function AdminProcessoDetalhe() {
                       <Download size={16} />
                     </button>
                     {podeGerenciar && (
-                      <button onClick={() => excluirDocumento(d)} className="btn-ghost text-sm text-danger-600 hover:bg-danger-50">
-                        <Trash2 size={16} />
-                      </button>
+                      <>
+                        <label className="font-medium text-xs mr-2">
+                          <input
+                            type="checkbox"
+                            checked={d.visivel}
+                            onChange={(e) => toggleDocumentoVisivel(d, e.target.checked)}
+                            className="checkbox-internal"
+                          />
+                          {d.visivel ? 'Visível' : 'Oculto'}
+                        </label>
+                        <button onClick={() => excluirDocumento(d)} className="btn-ghost text-sm text-danger-600 hover:bg-danger-50">
+                          <Trash2 size={16} />
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>

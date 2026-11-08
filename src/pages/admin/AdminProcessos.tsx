@@ -59,6 +59,7 @@ export default function AdminProcessos() {
   });
   const [salvando, setSalvando] = useState(false);
   const [arquivos, setArquivos] = useState<FileList | null>(null);
+  const [visivelDocumento, setVisivelDocumento] = useState(true);
   /** Compromissos futuros agrupados por processo (id do processo -> lista ordenada). */
   const [compromissosPorProcesso, setCompromissosPorProcesso] = useState<Map<string, Compromisso[]>>(new Map());
   /** Processo alvo do modal de agendamento (null = modal fechado). */
@@ -142,6 +143,7 @@ export default function AdminProcessos() {
             nome_arquivo: arquivo.name,
             url,
             tipo: 'outro',
+            visivel: visivelDocumento,
             enviado_por_id: user?.uid ?? null,
           });
         }
@@ -395,6 +397,17 @@ export default function AdminProcessos() {
               multiple
               onChange={(e) => setArquivos(e.target.files)}
               className="input-field file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100" />
+          </div>
+          <div className="mt-2">
+            <label className="font-medium">
+              <input
+                type="checkbox"
+                checked={visivelDocumento}
+                onChange={(e) => setVisivelDocumento(e.target.checked)}
+                className="checkbox-internal"
+              />
+              {visivelDocumento ? 'Documento visível para cliente' : 'Documento oculto para cliente'}
+            </label>
           </div>
           <div className="flex gap-3 justify-end pt-2">
             <button type="button" onClick={() => setModalAberto(false)} className="btn-secondary">Cancelar</button>

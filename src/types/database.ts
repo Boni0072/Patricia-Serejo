@@ -87,6 +87,7 @@ export interface Documento {
   tipo: TipoDocumento;
   enviado_por_id: string | null;
   criado_em: string;
+  visivel: boolean;
 }
 
 export interface Mensagem {

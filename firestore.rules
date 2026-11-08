@@ -4,10 +4,19 @@ service cloud.firestore {
 
     function isSignedIn() { return request.auth != null; }
     function uid() { return request.auth.uid; }
-    function perfil() { return get(/databases/$(database)/documents/perfis/$(uid())).data; }
-    function papel() { return isSignedIn() && exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'admin' || (isSignedIn() && exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'advogado'); }
-    function isAdmin() { return isSignedIn() && exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'admin'; }
-    function isAdvogado() { return isSignedIn() && exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'advogado'; }
+    function perfil() {
+    return get(/databases/$(database)/documents/perfis/$(uid())).data;
+  }
+  function perfilExiste() {
+    return exists(/databases/$(database)/documents/perfis/$(uid()));
+  }
+  function papelValido() {
+    return isSignedIn() && perfilExiste() &&
+      (perfil().papel == 'admin' || perfil().papel == 'advogado');
+  }
+    function papel() { return papelValido(); }
+    function isAdmin() { return isSignedIn() && perfilExiste() && perfil().papel == 'admin'; }
+    function isAdvogado() { return isSignedIn() && perfilExiste() && perfil().papel == 'advogado'; }
     function isEquipe() { return isAdmin() || isAdvogado(); }
 
     // O cliente informado pertence ao usuario logado?
@@ -81,7 +90,8 @@ service cloud.firestore {
     match /documentos/{id} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
-      allow delete: if isSignedIn() && (isAdmin() || (exists(/databases/$(database)/documents/perfis/$(uid())) && perfil().papel == 'advogado'));
+      allow update: if isSignedIn() && papelValido();
+      allow delete: if isSignedIn() && papelValido();
     }
 
     // mensagens
